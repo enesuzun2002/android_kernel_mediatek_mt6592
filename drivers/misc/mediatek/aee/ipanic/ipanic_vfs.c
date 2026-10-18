@@ -11,8 +11,26 @@
 struct file *expdb_open(void)
 {
 	static struct file *filp_expdb;
-	if (!filp_expdb)
-		filp_expdb = filp_open(AEE_EXPDB_PATH, O_RDWR, 0);
+
+	/* Return the cached handle only if it is a real one. */
+	if (filp_expdb && !IS_ERR(filp_expdb))
+		return filp_expdb;
+
+	/*
+	 * Never cache the failure. filp_open() returns an ERR_PTR, which is
+	 * non-NULL, so caching it made this function non-NULL on the next
+	 * call and it never retried. Every caller's retry loop then spun on
+	 * the same stale error - which is why the working kernel logs
+	 * "ram_console: open expdb partition error [-2]" over and over for
+	 * 30 seconds instead of ever succeeding.
+	 *
+	 * Note that -ENOENT here is not a missing driver: nothing registers
+	 * a misc device named "expdb" and CONFIG_DEVTMPFS is off, so the node
+	 * only exists once userspace creates it. Kernel code that needs expdb
+	 * before userspace should use card_dump_func_read()/write() instead,
+	 * which drive the msdc host directly and need no node at all.
+	 */
+	filp_expdb = filp_open(AEE_EXPDB_PATH, O_RDWR, 0);
 	if (IS_ERR(filp_expdb)) {
 		LOGD("filp_open(%s) for aee failed (%ld)\n", AEE_EXPDB_PATH, PTR_ERR(filp_expdb));
 	}

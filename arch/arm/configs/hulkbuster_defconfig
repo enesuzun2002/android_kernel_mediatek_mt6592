@@ -1688,8 +1688,25 @@ CONFIG_MTK_AEE_FEATURE=y
 CONFIG_MTK_AEE_AED=y
 CONFIG_MTK_AEE_IPANIC=y
 # CONFIG_MTK_AEE_POWERKEY_HANG_DETECT is not set
-# CONFIG_MTK_RAM_CONSOLE is not set
-# CONFIG_MTK_RAM_CONSOLE_USING_SRAM is not set
+
+# MTK ram console: provides /proc/last_kmsg and /proc/last_kmsg2, and
+# persists the buffer to expdb @0x700000.
+#
+# The shipping kernel has this on - confirmed two ways, without needing a
+# stock-ROM flash:
+#   - the strings "ram_console: save kernel log" and "create last_kmsg2 ok"
+#     are present in the decompressed stock zImage (they are absent here)
+#   - the working ROM logs "ram_console: buffer start: 0xf900dc00, size:
+#     0x1c00", which is exactly the ADDR/SIZE below
+#
+# /proc/last_kmsg is not optional decoration: Android's BootReceiver reads
+# it every boot ("Copying /proc/last_kmsg to DropBox (SYSTEM_LAST_KMSG)").
+#
+# SRAM only. USING_DRAM would place a 64 KiB buffer at 0x7FF00000, inside
+# the 2 GiB Linux-visible DRAM, and there is no evidence the shipping
+# kernel uses it - so it stays off until that is proven safe on this board.
+CONFIG_MTK_RAM_CONSOLE=y
+CONFIG_MTK_RAM_CONSOLE_USING_SRAM=y
 # CONFIG_MTK_RAM_CONSOLE_USING_DRAM is not set
 CONFIG_MTK_RAM_CONSOLE_SIZE=0x1C00
 CONFIG_MTK_RAM_CONSOLE_ADDR=0xF900DC00
@@ -2878,7 +2895,6 @@ CONFIG_MISC_FILESYSTEMS=y
 # CONFIG_QNX4FS_FS is not set
 # CONFIG_QNX6FS_FS is not set
 # CONFIG_ROMFS_FS is not set
-# CONFIG_PSTORE is not set
 # CONFIG_SYSV_FS is not set
 # CONFIG_UFS_FS is not set
 # CONFIG_F2FS_FS is not set
