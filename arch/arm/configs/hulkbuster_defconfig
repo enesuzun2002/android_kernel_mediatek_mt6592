@@ -1411,6 +1411,37 @@ CONFIG_MTK_TOUCHPANEL=y
 # CONFIG_LEDS_RT8542 is not set
 CONFIG_MTK_VIBRATOR=y
 
+# Periodic kernel log sink into expdb.
+#
+# There is no way to read a kernel log off this board on failure: no UART,
+# TWRP exposes neither /dev/mem nor /proc/kcore so the RAM console is
+# unreachable, there is no device tree so no pstore region can be reserved
+# or passed on the cmdline, and userspace never starts so adb never appears
+# and /sys/fs/pstore is never mounted. On top of that the failure being
+# chased is a hang rather than a panic - CPU0 sits in the level-triggered
+# mt_i2c_irq() which is never acknowledged - so ipanic's panic path never
+# runs and expdb keeps serving the dump of whatever kernel panicked last.
+# That is exactly how a stale dump from an older build gets mistaken for a
+# fresh one.
+#
+# This writes the ring buffer out on a timer while the kernel is still alive
+# to do it: the last 64 KiB every 2s, the full buffer every 30s, plus an
+# immediate dump from the reboot notifier (which covers panic too). It goes
+# through card_dump_func_write(), which uses its own msdc handle
+# (EXTEND_STORAGE_ID), so it does not contend with the host that mounts
+# /system.
+#
+# Offsets 0x700000 / 0x800000 sit past the end of the ipanic record table
+# (0x654000 on this device), so these snapshots never clobber a real panic
+# dump and vice versa. Read them back from TWRP with:
+#
+#   adb shell "dd if=/dev/expdb of=/sdcard/expdb.bin bs=1024 count=10240"
+#   ./device/generalmobile/hulkbuster/build-tools/decode_expdb.py \
+#       expdb.bin --klog
+#
+# Leave this off once the kernel boots; it is only useful during bring-up.
+CONFIG_MTK_KLOG_SINK=y
+
 # Do not arm the MTK WDT during mtk_wdt_probe().
 #
 # With CONFIG_MTK_WD_ARM_AT_PROBE set, probe initialises the WDT in "dual

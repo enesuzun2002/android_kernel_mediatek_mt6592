@@ -26,3 +26,22 @@ config MTK_AEE_POWERKEY_HANG_DETECT
 	bool "powerkey monitor"
 	default n
 
+config MTK_KLOG_SINK
+	bool "Periodic kernel log sink into expdb"
+	default n
+	depends on MTK_AEE_IPANIC
+	---help---
+	  Periodically write the kernel ring buffer into the expdb partition
+	  using the AEE dump writer, so the log survives a hang as well as a
+	  panic.
+
+	  On a board with no UART, no device tree (so no pstore region can be
+	  passed or reserved) and a failure mode that hangs rather than
+	  panics, this is the only way to read back what the kernel was
+	  doing. Snapshots are written past the end of the ipanic record
+	  table so they never overwrite a real panic dump.
+
+	  Writes the last 64 KiB every 2 seconds and the full ring buffer
+	  every 30 seconds, so it is only worth enabling while bringing up
+	  a kernel.
+
