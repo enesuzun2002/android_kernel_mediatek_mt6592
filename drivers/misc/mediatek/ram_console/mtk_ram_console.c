@@ -160,7 +160,20 @@ extern int card_dump_func_write(unsigned char *buf, unsigned int len, unsigned l
 extern int card_dump_func_read(unsigned char *buf, unsigned int len, unsigned long long offset,
 			       int dev);
 
-#define EMMC_ADDR 0X700000
+/*
+ * Where last_kmsg_store_to_emmc() persists the SRAM ram console on
+ * shutdown/panic.
+ *
+ * NOT 0x700000: that offset belongs to ipanic_pstore.c
+ * (AEE_POWEROFF_OFFSET / AEE_POWEROFF_MAGIC 0x43474244). Both mechanisms
+ * used the same offset and the same magic, so writing ours there clobbered
+ * ipanic's poweroff header - which is exactly what the dump at 0x700000
+ * was: an ipanic poweroff header, not a ram console buffer.
+ *
+ * 0x680000 is inside the verified-erased gap 0x670000-0x700000 in the
+ * dump; nothing else owns it.
+ */
+#define EMMC_ADDR 0X680000
 static char *ram_console2_log;
 extern int boot_finish;
 extern struct file *expdb_open(void);
@@ -532,9 +545,16 @@ static int __init ram_console_init(struct ram_console_buffer *buffer, size_t buf
 	buffer->off_console = buffer->off_linux + ALIGN(sizeof(struct last_reboot_reason), 64);
 	buffer->sz_console = buffer->sz_buffer - buffer->off_console;
 	memset((void*)buffer + buffer->off_linux, 0, buffer_size - buffer->off_linux);
-#ifndef CONFIG_PSTORE
+	/*
+	 * Keep the ram console as a console even with CONFIG_PSTORE=y. Stock
+	 * has CONFIG_PSTORE off, which is why its register_console() runs and
+	 * /proc/last_kmsg actually contains printk output. With PSTORE on, this
+	 * block was skipped, so the SRAM buffer captured nothing from printk
+	 * and /proc/last_kmsg was empty on our kernel - even though it was
+	 * enabled. We keep PSTORE for ipanic's pstore path and register the
+	 * console anyway.
+	 */
 	register_console(&ram_console);
-#endif
 	return 0;
 }
 
@@ -641,6 +661,7 @@ static int __init ram_console_early_init(void)
 {
 	struct ram_console_buffer *bufp = NULL;
 	size_t buffer_size = 0;
+	int ret = 0;
 #if defined(CONFIG_MTK_RAM_CONSOLE_USING_SRAM)
 #ifdef CONFIG_OF
 	mem_desc_t sram = {0};
@@ -695,9 +716,19 @@ static int __init ram_console_early_init(void)
 	pr_err("ram_console: buffer start: 0x%p, size: 0x%zx\n", bufp, buffer_size);
 	mtk_cpu_num = num_present_cpus();
 
-	atomic_notifier_chain_register(&panic_notifier_list, &ram_console_nb);
+	/*
+	 * Register the panic notifier only after ram_console_init() has set
+	 * ram_console_buffer: last_kmsg_store_to_emmc() dereferences it, and
+	 * registering before init created a window where a very early panic
+	 * would NULL-deref during panic - i.e. an instant reset, which is
+	 * exactly the symptom we are debugging.
+	 */
+	ret = ram_console_init(bufp, buffer_size);
 
-	return ram_console_init(bufp, buffer_size);
+	if (ret == 0)
+		atomic_notifier_chain_register(&panic_notifier_list, &ram_console_nb);
+
+	return ret;
 }
 
 static int ram_console_show(struct seq_file *m, void *v)
