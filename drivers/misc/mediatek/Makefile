@@ -155,7 +155,7 @@ endif
 endif
 
 #obj-y	+= matv/
-obj-y	+= touchpanel/
+# obj-y	+= touchpanel/   # no such directory in this tree
 # 
 
 obj-$(CONFIG_MTK_VOW_SUPPORT)	+= vow/
