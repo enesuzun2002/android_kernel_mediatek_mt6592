@@ -333,7 +333,15 @@ int tpd_register_flag = 0;
 struct tpd_device *tpd = 0;
 static struct tpd_driver_t tpd_driver_list[TP_DRV_MAX_COUNT];	/* = {0}; */
 
-#ifdef CONFIG_OF
+/*
+ * The platform device is instantiated in code for the legacy (no device
+ * tree) path as well as for OF. On a board with no DTB CONFIG_OF is unset,
+ * and gating this on CONFIG_OF alone left tpd_device undefined and never
+ * registered, so tpd_probe() never ran and no capacitive driver in
+ * tpd_driver_list was ever initialised - the touch controller on i2c was
+ * never probed at all.
+ */
+#if defined(CONFIG_OF) || defined(CONFIG_MTK_LEGACY)
 struct platform_device tpd_device = {
     .name   	= TPD_DEVICE,
     .id        	= -1,
@@ -719,13 +727,18 @@ static int tpd_remove(struct platform_device *pdev)
 static int __init tpd_device_init(void)
 {
 	printk("MediaTek touch panel driver init\n");
-#if defined(CONFIG_MTK_LEGACY)
-#ifdef CONFIG_OF
+/*
+ * MTK_LEGACY means "no device tree, instantiate the devices from code", so
+ * register tpd_device here without also requiring CONFIG_OF. With
+ * CONFIG_MTK_LEGACY=y and CONFIG_OF=n both the register below and the
+ * definition of tpd_device were compiled out, the driver was registered
+ * but never probed, and tpd_driver_list was never walked.
+ */
+#if defined(CONFIG_MTK_LEGACY) || defined(CONFIG_OF)
 	if(platform_device_register(&tpd_device)!=0) {
 		TPD_DMESG("unable to register touch panel device.\n");
 		return -1;
 	}
-#endif
 #endif
 	if (platform_driver_register(&tpd_driver) != 0) {
 		TPD_DMESG("unable to register touch panel driver.\n");
