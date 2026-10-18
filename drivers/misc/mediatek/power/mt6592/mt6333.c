@@ -273,6 +273,36 @@ kal_uint32 mt6333_read_interface_polling (kal_uint8 RegNum, kal_uint8 *val, kal_
     return ret;
 }
 
+/*
+ * Clear one bit in a write-1-to-clear status register.
+ *
+ * The interrupt handlers in this file clear their status bit by calling
+ * mt6333_config_interface(INT_STATUSn, 0x1, 0x1, shift), which reads the
+ * register and then does:
+ *
+ *     reg &= ~(MASK << SHIFT);
+ *     reg |=  (val  << SHIFT);
+ *
+ * With val and MASK both 0x1 that clears the bit and immediately sets it
+ * again, so the bit is left asserted. On the level-triggered MT6333 EINT
+ * line (CUST_EINTF_TRIGGER_LOW) the status never goes away, so the PMIC
+ * re-asserts the interrupt immediately and it is delivered again, forever.
+ * That is the interrupt storm seen on every boot of this kernel.
+ *
+ * The factory kernel does not storm like this, so this is a real
+ * behavioural difference and not just a latent oddity.
+ *
+ * Write-1-to-clear means there is no need to read-modify-write at all: the
+ * hardware clears a status bit when a 1 is written to it, and other bits in
+ * the same register are unaffected. Writing the 1 is therefore both correct
+ * and safe.
+ */
+static kal_uint32 mt6333_clear_status_bit(kal_uint8 RegNum, kal_uint8 MASK,
+                                          kal_uint8 SHIFT)
+{
+    return mt6333_write_byte(RegNum, (kal_uint8)(MASK << SHIFT));
+}
+
 kal_uint32 mt6333_config_interface (kal_uint8 RegNum, kal_uint8 val, kal_uint8 MASK, kal_uint8 SHIFT)
 {
     kal_uint8 mt6333_reg = 0;
@@ -7399,84 +7429,84 @@ void chr_complete_int_handler(void)
 
     pr_notice("RGS_CHARGE_COMPLETE_HW = %d\n", mt6333_get_rgs_charge_complete_hw());
 
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,0);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 0);
 }
 
 void thermal_sd_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[thermal_sd_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,1);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 1);
 }
 
 void thermal_reg_in_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[thermal_reg_in_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,2);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 2);
 }
 
 void thermal_reg_out_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[thermal_reg_out_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,3);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 3);
 }
 
 void otg_oc_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[otg_oc_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,4);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 4);
 }
 
 void otg_thermal_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[otg_thermal_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,5);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 5);
 }
 
 void otg_chrin_short_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[otg_chrin_short_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,6);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 6);
 }
 
 void otg_drvcdt_short_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[otg_drvcdt_short_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS0,0x1,0x1,7);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS0, 0x1, 7);
 }
 
 void chrwdt_flag_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[chrwdt_flag_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,0);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 0);
 }
 
 void buck_vcore_oc_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[buck_vcore_oc_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,1);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 1);
 }
 
 void buck_vmem_oc_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[buck_vmem_oc_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,2);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 2);
 }
 
 void buck_vrf18_oc_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[buck_vrf18_oc_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,3);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 3);
 }
 
 
@@ -7497,42 +7527,42 @@ void buck_thermal_int_handler(void)
     kal_uint32 ret=0;
     pr_notice( "[buck_thermal_int_handler]....\n");
     set_thermal_mt6333_buck_int_status(1);
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,4);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 4);
 }
 
 void flash_en_timeout_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[flash_en_timeout_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,5);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 5);
 }
 
 void flash_vled_short_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[flash_vled_short_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,6);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 6);
 }
 
 void flash_vled_open_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[flash_vled_open_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS1,0x1,0x1,7);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS1, 0x1, 7);
 }
 
 void chr_plug_in_flash_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[chr_plug_in_flash_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS2,0x1,0x1,0);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS2, 0x1, 0);
 }
 
 void chr_oc_int_handler(void)
 {
     kal_uint32 ret=0;
     pr_notice( "[chr_oc_int_handler]....\n");
-    ret=mt6333_config_interface(MT6333_INT_STATUS2,0x1,0x1,1);
+    ret=mt6333_clear_status_bit(MT6333_INT_STATUS2, 0x1, 1);
 }
 
 static int mt6333_thread_kthread(void *x)

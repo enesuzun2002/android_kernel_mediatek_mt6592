@@ -338,8 +338,13 @@ static int __init klog_sink_init(void)
 		return -ENODEV;
 	}
 
-	/* Fire once early, in case boot dies before the first period is up. */
-	mod_timer(&klog_sink_timer, jiffies + msecs_to_jiffies(4000));
+	/*
+	 * Fire almost immediately rather than after a full period: at
+	 * core_initcall (~1 s) with a 4 s delay, a death at 2 s would leave
+	 * nothing at all. 200 ms means the first snapshot lands well before
+	 * even the earliest failure we have seen.
+	 */
+	mod_timer(&klog_sink_timer, jiffies + msecs_to_jiffies(200));
 
 	printk("klog_sink: active, tail@0x%llx every %dms, full@0x%llx every %dms\n",
 	       KLOG_TAIL_OFF, KLOG_TAIL_PERIOD_MS,
@@ -348,7 +353,21 @@ static int __init klog_sink_init(void)
 	return 0;
 }
 
-late_initcall(klog_sink_init);
+/*
+ * core_initcall, not late_initcall.
+ *
+ * This kernel dies before late_initcall: kernels #8 and #10 both wrote
+ * nothing at all to expdb, and never lit the panel. A late_initcall sink
+ * is therefore useless here - it cannot record the failure it exists to
+ * record.
+ *
+ * core_initcall runs at ~1 s, which is early enough to have already
+ * captured something by the time the board gives up. It is late enough
+ * that printk and the console are up, and that the eMMC dump host used by
+ * card_dump_func_write() has been brought up by the AEE driver's own
+ * initcall (aee_ipanic_init() runs at module_init, before core_initcall).
+ */
+core_initcall(klog_sink_init);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("Periodic kernel log sink into expdb for hulkbuster bring-up");
