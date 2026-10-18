@@ -33,17 +33,36 @@
  * (EXTEND_STORAGE_ID in drivers/misc/mediatek/mmc-host/mt6592/mt_dump.c) and
  * so does not contend with the host that mounts /system.
  *
- * The offsets below start at 0x700000, past the end of the ipanic record
- * table (0x654000 on this device), so periodic snapshots never clobber a
- * real panic dump and a panic dump never clobbers these. They are only two
- * extra dd offsets, and device/generalmobile/hulkbuster/build-tools/
- * decode_expdb.py knows how to read them.
+ * Measured occupancy of the 0xa00000 byte expdb partition on this device,
+ * by dumping it whole and walking every 64 KiB:
+ *
+ *   0x000c00 - 0x654000   11 ipanic records (kernel log, wdt log, oops
+ *                         detail, mini rdump, the four *LOG_RAW, atf log)
+ *   0x660000 - 0x700000   erased (0xff)   <- KLOG_TAIL_OFF, 64 KiB
+ *   0x700000 - 0x702000   MTK RAM console, signature "DBGC"
+ *                         (0x43474244, dram_console.c). Left by the factory
+ *                         kernel; this build has CONFIG_MTK_AEE_DRAM_CONSOLE
+ *                         off, but it is NOT ours to overwrite.
+ *   0x702000 - 0xa000000  erased (0xff)   <- KLOG_FULL_OFF, 1 MiB
+ *
+ * An earlier version of this sink used 0x700000 for the tail, having only
+ * checked that it was past the end of the ipanic table. That is exactly the
+ * region the RAM console occupies, so those writes would have destroyed it.
+ * klog_region_usable() below now checks before writing anything, so a wrong
+ * offset is a loud boot-time refusal rather than silent corruption.
+ *
+ * Both regions hold only this sink's own data, and they are past the ipanic
+ * table, so snapshots never clobber a real panic dump and a panic dump never
+ * clobbers these.
  *
  * Reading them back from TWRP:
  *
  *   adb shell "dd if=/dev/expdb of=/sdcard/expdb.bin bs=1024 count=10240"
  *   adb pull /sdcard/expdb.bin
  *   ./decode_expdb.py expdb.bin --klog
+ *
+ * The dump must be read to the end of the partition. Stopping at 2 MB, as
+ * was done earlier, misses both the extra ipanic records and these.
  *
  * Cost control: the frequent snapshot is deliberately small (64 KiB, the
  * tail of the ring buffer) and writes are 512-byte aligned and block sized,
@@ -69,10 +88,17 @@ extern struct atomic_notifier_head panic_notifier_list;
 
 extern int card_dump_func_write(unsigned char *buf, unsigned int len,
 				unsigned long long offset, int dev);
+extern int card_dump_func_read(unsigned char *buf, unsigned int len,
+			       unsigned long long offset, int dev);
+
+/* Erased eMMC reads as all-ones. */
+#define KLOG_ERASED_BYTE	0xff
 
 /* Layout inside expdb. Both offsets are 512-byte aligned as the AEE writer
- * requires, and both fit inside the 0xa00000 byte partition. */
-#define KLOG_TAIL_OFF	0x700000ULL	/* 64 KiB  - rewritten often       */
+ * requires, both fit inside the 0xa00000 byte partition, and both sit in
+ * regions measured to be erased. See the occupancy map at the top of this
+ * file: 0x700000 in particular is MTK's RAM console, not free space. */
+#define KLOG_TAIL_OFF	0x660000ULL	/* 64 KiB  - rewritten often       */
 #define KLOG_FULL_OFF	0x800000ULL	/* 1 MiB   - rewritten occasionally */
 
 #define KLOG_TAIL_SIZE	(64 * 1024)
@@ -111,6 +137,17 @@ static struct timer_list klog_sink_timer;
 static struct kmsg_dumper klog_dumper;
 static unsigned int klog_seq;
 static bool klog_in_panic;
+static bool klog_tail_ok;
+static bool klog_full_ok;
+
+static bool klog_offset_ok(unsigned long long offset)
+{
+	if (offset == KLOG_TAIL_OFF)
+		return klog_tail_ok;
+	if (offset == KLOG_FULL_OFF)
+		return klog_full_ok;
+	return false;
+}
 
 static void klog_dumper_reset(struct kmsg_dumper *d)
 {
@@ -122,6 +159,69 @@ static void klog_dumper_reset(struct kmsg_dumper *d)
 	d->active = false;
 }
 
+/*
+ * Decide whether we may write to a region, and say so loudly if not.
+ *
+ * Accepted: the region reads as erased (all 0xff), or it already begins with
+ * our own magic, which means a previous boot of this sink wrote it and we
+ * own it.
+ *
+ * Anything else is another subsystem's data - the RAM console at 0x700000 is
+ * the case that actually happened here - so refuse rather than destroy it.
+ * A sink that silently overwrites someone else's region is worse than no
+ * sink at all: it looks like it is working while eating a debug facility.
+ */
+static bool klog_region_usable(const char *name, unsigned long long offset,
+			       size_t size, bool *already_ours)
+{
+	unsigned char *probe;
+	size_t i;
+	bool erased = true;
+	bool ours = false;
+	int ret;
+
+	probe = (unsigned char *)vzalloc(size);
+	if (!probe) {
+		printk("klog_sink: cannot verify %s region, no memory\n", name);
+		return false;
+	}
+
+	ret = card_dump_func_read(probe, (unsigned int)size, offset,
+				  DUMP_INTO_BOOT_CARD_IPANIC);
+	if (ret != 0) {
+		printk("klog_sink: cannot read %s region at 0x%llx (ret %d), "
+		       "refusing to write it\n", name, offset, ret);
+		vfree(probe);
+		return false;
+	}
+
+	for (i = 0; i < size; i++) {
+		if (probe[i] != KLOG_ERASED_BYTE) {
+			erased = false;
+			break;
+		}
+	}
+	if (!erased && size >= sizeof(u32) &&
+	    !memcmp(probe, &((u32){ KLOG_MAGIC }), sizeof(u32)))
+		ours = true;
+
+	if (already_ours)
+		*already_ours = ours;
+
+	if (!erased && !ours) {
+		printk("klog_sink: %s region at 0x%llx is in use by something "
+		       "else (first bytes %02x %02x %02x %02x) - NOT writing\n",
+		       name, offset, probe[0], probe[1], probe[2], probe[3]);
+		vfree(probe);
+		return false;
+	}
+
+	printk("klog_sink: %s region 0x%llx is %s\n", name, offset,
+	       erased ? "erased" : "ours from a previous boot");
+	vfree(probe);
+	return true;
+}
+
 static void klog_dump_once(enum klog_kind kind, unsigned long long offset,
 			   size_t size)
 {
@@ -131,6 +231,10 @@ static void klog_dump_once(enum klog_kind kind, unsigned long long offset,
 	size_t total;
 	u64 ms;
 	int ret;
+
+	/* Verified once at init; a region we may not touch stays untouched. */
+	if (!klog_offset_ok(offset))
+		return;
 
 	buf = (unsigned char *)vzalloc(size + sizeof(*hdr));
 	if (!buf) {
@@ -213,15 +317,29 @@ static int __init klog_sink_init(void)
 
 	klog_dumper_reset(&klog_dumper);
 
+	/*
+	 * Verify both regions before any timer is armed, so a bad offset
+	 * cannot start writing on its own.
+	 */
+	klog_tail_ok = klog_region_usable("tail", KLOG_TAIL_OFF,
+					  KLOG_TAIL_SIZE, NULL);
+	klog_full_ok = klog_region_usable("full", KLOG_FULL_OFF,
+					  KLOG_FULL_SIZE, NULL);
+
 	if (kmsg_dump_register(&klog_dumper)) {
 		printk("klog_sink: kmsg_dump_register failed, sink disabled\n");
 		return -ENODEV;
 	}
 
+	atomic_notifier_chain_register(&panic_notifier_list, &klog_sink_nb);
+
+	if (!klog_tail_ok && !klog_full_ok) {
+		printk("klog_sink: no usable region, sink disabled\n");
+		return -ENODEV;
+	}
+
 	/* Fire once early, in case boot dies before the first period is up. */
 	mod_timer(&klog_sink_timer, jiffies + msecs_to_jiffies(4000));
-
-	atomic_notifier_chain_register(&panic_notifier_list, &klog_sink_nb);
 
 	printk("klog_sink: active, tail@0x%llx every %dms, full@0x%llx every %dms\n",
 	       KLOG_TAIL_OFF, KLOG_TAIL_PERIOD_MS,
