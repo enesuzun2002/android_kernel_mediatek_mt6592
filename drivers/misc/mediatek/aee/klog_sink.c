@@ -77,6 +77,7 @@
 #include <linux/workqueue.h>
 #include <linux/timer.h>
 #include <linux/notifier.h>
+#include <asm/io.h>
 #include <linux/sched.h>
 #include <linux/time.h>
 #include <linux/vmalloc.h>
@@ -312,6 +313,9 @@ static struct notifier_block klog_sink_nb = {
 
 static int __init klog_sink_init(void)
 {
+	/* Bring-up breadcrumb stage S2 = reached core_initcall. */
+	__raw_writel(0x00003253, 0xF900DC04);   /* "S2" */
+
 	INIT_WORK(&klog_sink_work, klog_sink_work_fn);
 	setup_timer(&klog_sink_timer, klog_sink_timer_fn, 0);
 

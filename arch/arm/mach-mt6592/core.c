@@ -14,6 +14,7 @@
 #include <asm/page.h>
 #include <mach/mt_reg_base.h>
 #include <mach/irqs.h>
+#include <asm/io.h>
 
 extern void arm_machine_restart(char mode, const char *cmd);
 extern void mt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi);
@@ -128,6 +129,12 @@ static struct map_desc mt_io_desc[] __initdata =
 void __init mt_map_io(void)
 {
     iotable_init(mt_io_desc, ARRAY_SIZE(mt_io_desc));
+
+    /* Bring-up breadcrumb: write a stage marker to the ram console SRAM
+     * buffer so the next (working) boot can read it via /proc/last_kmsg.
+     * S0 = reached mt_map_io (setup_arch time, before any initcall). */
+    __raw_writel(0x43474244, 0xF900DC00);   /* REBOOT_REASON_SIG */
+    __raw_writel(0x00003053, 0xF900DC04);   /* "S0" */
 }
 
 #ifdef MTK_TABLET_PLATFORM

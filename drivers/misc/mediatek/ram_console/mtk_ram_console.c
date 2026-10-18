@@ -662,6 +662,9 @@ static int __init ram_console_early_init(void)
 	struct ram_console_buffer *bufp = NULL;
 	size_t buffer_size = 0;
 	int ret = 0;
+
+	/* Bring-up breadcrumb stage S1 = reached console_initcall. */
+	__raw_writel(0x00003153, 0xF900DC04);   /* "S1" */
 #if defined(CONFIG_MTK_RAM_CONSOLE_USING_SRAM)
 #ifdef CONFIG_OF
 	mem_desc_t sram = {0};
