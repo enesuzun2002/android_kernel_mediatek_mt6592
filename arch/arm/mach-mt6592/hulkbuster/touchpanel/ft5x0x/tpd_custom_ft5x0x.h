@@ -24,6 +24,10 @@
 #ifndef __TPD_CUSTOM_FT5X0X_H__
 #define __TPD_CUSTOM_FT5X0X_H__
 
+#include <mach/mt_pm_ldo.h>
+#include <mach/mt_typedefs.h>
+#include <mach/mt_boot.h>
+
 /* FocalTech I2C address as used in MTK trees: 8-bit form (0x38 << 1). */
 #define FT5X0X_I2C_ADDR            0x70
 
@@ -67,8 +71,7 @@
 #define TPD_DWRD                   u32
 #define TPD_BOOL                   kal_bool
 
-/* Debug hooks (no-op builds: define TPD_DEBUG to enable prints) */
+/* Debug hooks (TPD_DMESG itself comes from the shared tpd.h) */
 #define TPD_DEBUG                  0
-#define TPD_DMESG(fmt, ...)        printk(fmt, ##__VA_ARGS__)
 
 #endif /* __TPD_CUSTOM_FT5X0X_H__ */
