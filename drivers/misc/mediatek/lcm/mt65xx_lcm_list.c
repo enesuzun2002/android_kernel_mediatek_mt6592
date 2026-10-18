@@ -196,8 +196,16 @@ extern LCM_DRIVER hx8394d_dsi_vdo_djn_boe_hd720_ips_lcm_drv;
 extern LCM_DRIVER hx8394d_hd720_dsi_vdo_s35_lcm_drv;
 extern LCM_DRIVER otm1287_hd720_dsi_vdo_boyi_s35_lcm_drv;
 
+// hulkbuster (General Mobile ETAB5): OSD100T2587-53TS 10.1" 1920x1200 module
+// with an on-module Novatek NT71397 DSI->RGB bridge.
+extern LCM_DRIVER nt71397_wuxga_dsi_vdo_lcm_drv;
+
 LCM_DRIVER* lcm_driver_list[] = 
 { 
+// hulkbuster
+#if defined(NT71397_WUXGA_DSI_VDO)
+	&nt71397_wuxga_dsi_vdo_lcm_drv,
+#endif 
 #if defined(HX8394D_HD720_DSI_VDO_S35)
 	&hx8394d_hd720_dsi_vdo_s35_lcm_drv,
 #endif
