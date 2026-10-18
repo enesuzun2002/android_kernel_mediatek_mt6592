@@ -69,7 +69,7 @@ static void lcm_set_util_funcs(const LCM_UTIL_FUNCS *util)
 //  LCM Driver Implementations
 // ---------------------------------------------------------------------------
 
-static void lcm_power_init(int enable)
+static void lcm_power_init(void)
 {
     // Nothing to do: the panel module has no enable/reset line.
 }

@@ -13,5 +13,6 @@ obj-y   +=  tpd_setting.o
 
 obj-y	+=  GT9XX_3/
 obj-y	+=  ft5336/
+obj-y	+=  ft5x0x/
 
 
