@@ -98,7 +98,7 @@ CONFIG_RCU_FANOUT_LEAF=16
 # CONFIG_RCU_NOCB_CPU is not set
 CONFIG_IKCONFIG=y
 CONFIG_IKCONFIG_PROC=y
-CONFIG_LOG_BUF_SHIFT=18
+CONFIG_LOG_BUF_SHIFT=20
 CONFIG_GENERIC_SCHED_CLOCK=y
 CONFIG_CGROUPS=y
 # CONFIG_CGROUP_DEBUG is not set
@@ -3197,3 +3197,15 @@ CONFIG_ARCH_HAS_ATOMIC64_DEC_IF_POSITIVE=y
 # CONFIG_CORDIC is not set
 # CONFIG_DDR is not set
 # CONFIG_VIRTUALIZATION is not set
+
+# Post-mortem logging (no UART available on this device).
+# pstore/ramoops: with a RAM region reserved for it (see the kernel README
+# note about reserving memory for ramoops) panics and oopses are written to
+# a RAM-backed store that survives the reboot and can be read back through
+# /sys/fs/pstore/. Without a reserved region this is simply inert.
+# LOG_BUF_SHIFT=20 gives an 8 MiB kernel ring buffer, which matters when a
+# boot produces a lot of driver spew before the crash.
+CONFIG_PSTORE_CONSOLE=y
+CONFIG_PSTORE=y
+CONFIG_PSTORE_RAM=y
+CONFIG_PSTORE_PMSG=y
