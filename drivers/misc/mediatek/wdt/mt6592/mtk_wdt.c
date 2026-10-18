@@ -831,7 +831,11 @@ static int mtk_wdt_probe(struct platform_device *dev)
 	#define MAGIC_NUM_MASK		(0x3)
 
 
-#ifdef  CONFIG_MTK_WD_KICKER	// Initialize to dual mode
+#if defined(CONFIG_MTK_WD_KICKER) && defined(CONFIG_MTK_WD_ARM_AT_PROBE)
+	// Initialize to dual mode: arms a 30 second WDT that is fed from
+	// aee_dumpd once userspace is up. If userspace never gets that far the
+	// FIQ watchdog interrupt fires and BUG()s the kernel (see
+	// aee_wdt_irq_info() in drivers/misc/mediatek/aee/common/wdt-handler.c).
 	printk("mtk_wdt_probe : Initialize to dual mode \n");
 	#ifdef CONFIG_RGU_ECO
 	mtk_wdt_mode_config_init_use(TRUE, TRUE, TRUE, FALSE, TRUE);

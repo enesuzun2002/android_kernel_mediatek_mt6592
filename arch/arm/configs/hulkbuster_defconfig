@@ -1410,6 +1410,45 @@ CONFIG_MTK_TOUCHPANEL=y
 # CONFIG_LEDS_LM3639 is not set
 # CONFIG_LEDS_RT8542 is not set
 CONFIG_MTK_VIBRATOR=y
+
+# Do not arm the MTK WDT during mtk_wdt_probe().
+#
+# With CONFIG_MTK_WD_ARM_AT_PROBE set, probe initialises the WDT in "dual
+# mode" and arms it with a 30 second timeout
+# (drivers/misc/mediatek/wdt/mt6592/mtk_wdt.c):
+#
+#     g_last_time_time_out_value = 30;
+#     mtk_wdt_set_time_out_value_init(g_last_time_time_out_value);
+#     ...
+#     mtk_wdt_mode_config(TRUE, TRUE, TRUE, FALSE, TRUE);
+#
+# Nothing in the kernel feeds that timer. It is kicked by MTK's AEE
+# userspace daemon (aee_dumpd) through wd_restart(), i.e. only once Android
+# is up. Until then it runs down and the FIQ watchdog interrupt fires, which
+# MTK turns into a deliberate BUG() at the end of aee_wdt_irq_info()
+# (drivers/misc/mediatek/aee/common/wdt-handler.c:466) so that the panic
+# path writes an AEE dump. Observed on this device:
+#
+#     [    1.263731] mtk_wdt_probe : Initialize to dual mode
+#     [   31.280635] ------------[ cut here ]------------
+#     [   31.280648] kernel BUG at .../aee/common/wdt-handler.c:466!
+#     [   31.280658] Internal error: Oops - BUG: 0 [#1] PREEMPT SMP ARM
+#
+# 1.26 s probe + 30 s timeout = the 31.28 s panic. The dump then hung for
+# 17 s and a second FIQ timeout at 48.54 s produced the hard reset, which
+# is the ~35 s reboot seen from power-on (5 s of LK + ~31 s of kernel).
+#
+# This is NOT the chrwdt interrupt storm that runs throughout boot (957
+# hits, one every ~26 ms): the factory kernel logs 313 of those and boots
+# fine.
+#
+# CONFIG_MTK_WD_KICKER stays enabled because it also builds wdk/, which
+# provides get_wd_api() - called unconditionally from hotplug.c, mt_spm.c,
+# mt_spm_sleep.c, mt-smp.c and mach/system.c, so dropping the symbol breaks
+# the link. With ARM_AT_PROBE off, probe takes the other branch and leaves
+# the watchdog disabled (g_wdt_enable = 0), matching the factory kernel;
+# userspace can still arm it once it is running.
+# CONFIG_MTK_WD_ARM_AT_PROBE is not set
 CONFIG_MTK_WD_KICKER=y
 # CONFIG_KICK_SPM_WDT is not set
 # CONFIG_MT592X_SDIO_CLNT is not set

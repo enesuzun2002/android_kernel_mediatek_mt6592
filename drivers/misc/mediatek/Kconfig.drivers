@@ -784,6 +784,29 @@ config MTK_WD_KICKER
 	---help---
 	Watch dog kicker is a module in the kernel for kicking the watch dog
 
+config MTK_WD_ARM_AT_PROBE
+	bool "Arm the MTK WDT during mtk_wdt_probe"
+	default n
+	depends on MTK_WD_KICKER
+	---help---
+	 When enabled, mtk_wdt_probe() initialises the WDT in "dual mode"
+	 and arms it with the 30 second timeout set below:
+
+	     g_last_time_time_out_value = 30;
+	     mtk_wdt_set_time_out_value_init(g_last_time_time_out_value);
+	     mtk_wdt_mode_config(TRUE, TRUE, TRUE, FALSE, TRUE);
+
+	 That watchdog is fed by MTK's AEE userspace daemon (aee_dumpd) via
+	 wd_restart(), which only starts once Android is up. Until then the
+	 timer runs down and the FIQ watchdog interrupt fires, which MTK
+	 turns into a deliberate BUG() at the end of aee_wdt_irq_info() so
+	 that the panic path writes an AEE dump.
+
+	 Say N here to leave the watchdog disabled at probe time, matching
+	 the factory kernel, and let userspace arm it when it is ready. The
+	 wd_api interface stays available either way; this option only
+	 controls what probe does.
+
 config KICK_SPM_WDT # SW WORKAROUND
 	tristate "Kick SPM Watchdog"
 	default n
