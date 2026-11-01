@@ -1989,10 +1989,14 @@ __init int mt_board_init(void)
 	if (retval != 0)
 		return retval;
 
+#if defined(CONFIG_CUSTOM_KERNEL_BAROMETER)
+	/* No barometer on hulkbuster (no pressure sensor driver/chip), so
+	 * only register the m_baro_pl placeholder when one is configured. */
 	retval = platform_device_register(&barometer_sensor);
     printk("[%s]: barometer_sensor, retval=%d \n!", __func__, retval);
 	if (retval != 0)
 		return retval;
+#endif
 
 	retval = platform_device_register(&temp_sensor);
     printk("[%s]: temp_sensor, retval=%d \n!", __func__, retval);
