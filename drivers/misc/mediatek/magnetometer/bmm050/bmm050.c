@@ -1548,7 +1548,8 @@ enum {
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
 static const struct i2c_device_id bmm050_i2c_id[] = {{BMM050_DEV_NAME,0},{}};
-static struct i2c_board_info __initdata i2c_bmm050={ I2C_BOARD_INFO("bmm050", (0x10))};
+/* ETAB5: the stock kernel registers "bmm050" at 0x12 (SDO/CSB2 strapping) */
+static struct i2c_board_info __initdata i2c_bmm050={ I2C_BOARD_INFO("bmm050", (0x12))};
 
 /*the adapter id will be available in customization*/
 //static unsigned short bmm050_force[] = {0x00, BMM050_I2C_ADDR, I2C_CLIENT_END, I2C_CLIENT_END};
