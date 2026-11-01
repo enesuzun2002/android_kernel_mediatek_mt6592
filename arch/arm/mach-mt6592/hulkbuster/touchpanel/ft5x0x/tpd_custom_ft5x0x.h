@@ -51,9 +51,10 @@
 #define TPD_CALIBRATION_MATRIX_ROTATION_NORMAL  {1600, 0, 0, 0, 1600, 0, 0, 0}
 #define TPD_CALIBRATION_MATRIX_ROTATION_FACTORY {1600, 0, 0, 0, 1600, 0, 0, 0}
 
-/* Power: touch VDD is on the PMIC rail VGP3 (1.8 V) on this platform. */
-#define TPD_POWER_SOURCE_CUSTOM    MT6322_POWER_LDO_VGP3
-#define TPD_POWER_SOURCE_1800      MT6322_POWER_LDO_VGP3
+/* Power: the stock ETAB5 kernel calls hwPowerOn(MT6323_POWER_LDO_VGP1, 3300)
+ * (enum value 5) for the touch panel. */
+#define TPD_POWER_SOURCE_CUSTOM    MT6323_POWER_LDO_VGP1
+#define TPD_POWER_VOLTAGE          VOL_3300
 
 /* Charging noise workaround (used on many 3.10 boards with resistive
  * charge-pump touch panels). */

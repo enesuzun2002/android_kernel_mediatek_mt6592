@@ -508,7 +508,14 @@ static int tpd_probe(struct i2c_client *client, const struct i2c_device_id *id)
 #endif
 
 	TPD_DMESG("mtk_tpd: tpd_probe ft5x0x \n");
-#if 0
+
+	/*
+	 * Power-up/reset sequence copied from the stock ETAB5 3.10.72 kernel
+	 * (disassembled tpd_probe):
+	 *   RST(GPIO13): pull-up, GPIO mode, output, drive low
+	 *   EINT(GPIO14): GPIO/EINT mode, input, pull-up (left enabled)
+	 *   msleep(50); hwPowerOn(VGP1, 3.3V); msleep(100); RST high
+	 */
 	mt_set_gpio_pull_enable(GPIO_CTP_RST_PIN, GPIO_PULL_ENABLE);
 	mt_set_gpio_pull_select(GPIO_CTP_RST_PIN, GPIO_PULL_UP);
 	mt_set_gpio_mode(GPIO_CTP_RST_PIN, GPIO_CTP_RST_PIN_M_GPIO);
@@ -521,48 +528,10 @@ static int tpd_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mt_set_gpio_pull_select(GPIO_CTP_EINT_PIN, GPIO_PULL_UP);
 
 	msleep(50);
-#endif
-#if 0	
-	mt_set_gpio_mode(GPIO_CTP_EN_PIN, GPIO_CTP_EN_PIN_M_GPIO);
-	mt_set_gpio_dir(GPIO_CTP_EN_PIN, GPIO_DIR_OUT);
-	mt_set_gpio_out(GPIO_CTP_EN_PIN, GPIO_OUT_ONE);
-#endif
-
-#if 0
-#ifdef TPD_POWER_SOURCE_CUSTOM
-	hwPowerDown(TPD_POWER_SOURCE_CUSTOM,  "TP");
-#else
-	hwPowerDown(MT6323_POWER_LDO_VGP2,  "TP");
-#endif
-#endif 
-
-#ifdef TPD_POWER_SOURCE_CUSTOM
-	hwPowerOn(TPD_POWER_SOURCE_CUSTOM, VOL_2800, "TP");
-#else
-	TPD_DMESG("mtk_tpd: power MT65XX_POWER_LDO_VGP2 \n");
-	hwPowerOn(MT6323_POWER_LDO_VGP2, VOL_3000, "TP");
-	TPD_DMESG("mtk_tpd: end power MT65XX_POWER_LDO_VGP2 \n");
-#endif
-#ifdef TPD_POWER_SOURCE_1800
-	hwPowerOn(TPD_POWER_SOURCE_1800, VOL_1800, "TP");
-#endif
-
-#if 0
-	//reset
-	mt_set_gpio_mode(GPIO_CTP_RST_PIN, GPIO_CTP_RST_PIN_M_GPIO);
-	mt_set_gpio_dir(GPIO_CTP_RST_PIN, GPIO_DIR_OUT);
-	mt_set_gpio_out(GPIO_CTP_RST_PIN, GPIO_OUT_ZERO);
-	msleep(1);
+	hwPowerOn(TPD_POWER_SOURCE_CUSTOM, TPD_POWER_VOLTAGE, "TP");
+	msleep(100);
 	mt_set_gpio_out(GPIO_CTP_RST_PIN, GPIO_OUT_ONE);
-	msleep(20);
-#endif
-	//set INT mode
-	mt_set_gpio_mode(GPIO_CTP_EINT_PIN, GPIO_CTP_EINT_PIN_M_EINT);
-	mt_set_gpio_dir(GPIO_CTP_EINT_PIN, GPIO_DIR_IN);
-	mt_set_gpio_pull_enable(GPIO_CTP_EINT_PIN, GPIO_PULL_ENABLE);
-	mt_set_gpio_pull_select(GPIO_CTP_EINT_PIN, GPIO_PULL_UP);
-	
-	mt_set_gpio_pull_enable(GPIO_CTP_EINT_PIN, GPIO_PULL_DISABLE);
+	msleep(200);
 
 	//mt_eint_set_hw_debounce(CUST_EINT_TOUCH_PANEL_NUM, CUST_EINT_TOUCH_PANEL_DEBOUNCE_CN);
 	mt_eint_registration(CUST_EINT_TOUCH_PANEL_NUM, EINTF_TRIGGER_FALLING, tpd_eint_interrupt_handler, 1);
@@ -717,7 +686,7 @@ static int tpd_resume(struct i2c_client *client)
 	mt_set_gpio_out(GPIO_CTP_EN_PIN, GPIO_OUT_ONE);
 #endif
 #ifdef TPD_POWER_SOURCE_CUSTOM
-	hwPowerOn(TPD_POWER_SOURCE_CUSTOM, VOL_2800, "TP");
+	hwPowerOn(TPD_POWER_SOURCE_CUSTOM, TPD_POWER_VOLTAGE, "TP");
 #else
 	hwPowerOn(MT6323_POWER_LDO_VGP2, VOL_3000, "TP");
 #endif
