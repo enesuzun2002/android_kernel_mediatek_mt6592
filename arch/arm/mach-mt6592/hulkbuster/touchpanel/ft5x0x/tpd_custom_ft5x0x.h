@@ -84,6 +84,5 @@
 #define TPD_BOOL                   kal_bool
 
 /* Debug hooks (TPD_DMESG itself comes from the shared tpd.h) */
-#define TPD_DEBUG                  0
 
 #endif /* __TPD_CUSTOM_FT5X0X_H__ */

@@ -36,7 +36,7 @@
 //#define MUX_LOG_TOP
 //#define MUX_LOG
 //#define PLL_LOG_TOP
-#define PLL_LOG
+//#define PLL_LOG
 
 //#define Bring_Up
 /************************************************
