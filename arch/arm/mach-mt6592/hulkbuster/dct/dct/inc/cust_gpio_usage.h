@@ -180,6 +180,10 @@
 #define GPIO_UART_UTXD2_PIN_M_TDD_TXD   GPIO_MODE_04
 #define GPIO_UART_UTXD2_PIN_M_DBG_MON_B   GPIO_MODE_07
 
+/* ETAB5 stock: BQ24196 charge-enable (CE, active low) is GPIO19, mode 0 */
+#define GPIO_SWCHARGER_EN_PIN         (GPIO19 | 0x80000000)
+#define GPIO_SWCHARGER_EN_PIN_M_GPIO  GPIO_MODE_00
+
 /* ETAB5 stock: speaker amp enable is GPIO20 (Sound_Speaker_Turnon); stock never touches GPIO114 */
 #define GPIO_SPEAKER_EN_PIN         (GPIO20 | 0x80000000)
 #define GPIO_SPEAKER_EN_PIN_M_GPIO  GPIO_MODE_00
