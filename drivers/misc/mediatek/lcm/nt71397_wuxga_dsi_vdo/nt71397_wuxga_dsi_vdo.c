@@ -136,6 +136,16 @@ static void lcm_resume(void)
 	MDELAY(50);
 
 	lcm_turn_on_peripheral();
+
+	/*
+	 * Stock re-raises GPIO118 200 ms after the panel resumes (in its
+	 * display resume path, not in the LCM driver); it is never driven
+	 * low. It is the second enable raised at init.
+	 */
+	MDELAY(200);
+	set_gpio_mode(GPIO_LCM_EN2, GPIO_MODE_00);
+	set_gpio_dir(GPIO_LCM_EN2, GPIO_DIR_OUT);
+	set_gpio_out(GPIO_LCM_EN2, GPIO_OUT_ONE);
 }
 
 LCM_DRIVER nt71397_wuxga_dsi_vdo_lcm_drv = {
