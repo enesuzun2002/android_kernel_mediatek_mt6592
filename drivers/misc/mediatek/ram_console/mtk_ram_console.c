@@ -537,6 +537,18 @@ static void *remap_lowmem(phys_addr_t start, phys_addr_t size)
 	page_start = start - offset_in_page(start);
 	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
 
+	/*
+	 * pfn_to_page() on an address outside DRAM yields a bogus struct page
+	 * and the caller dereferences the mapping right away, at
+	 * console_initcall, before any log is captured. Refuse such ranges.
+	 */
+	if (!pfn_valid(page_start >> PAGE_SHIFT) ||
+	    !pfn_valid((page_start >> PAGE_SHIFT) + page_count - 1)) {
+		pr_err("%s: 0x%llx is not DRAM, skipped\n", __func__,
+		       (unsigned long long)start);
+		return NULL;
+	}
+
 	prot = pgprot_noncached(PAGE_KERNEL);
 
 	pages = kmalloc(sizeof(struct page *) * page_count, GFP_KERNEL);
@@ -607,7 +619,7 @@ static int __init ram_console_early_init(void)
         /*check if pl/lk use dram*/
         struct ram_console_buffer *bufp_dram = NULL;
 	    bufp_dram = remap_lowmem(CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR, CONFIG_MTK_RAM_CONSOLE_DRAM_SIZE);
-        if (bufp_dram->sig == REBOOT_REASON_SIG) {
+        if (bufp_dram && bufp_dram->sig == REBOOT_REASON_SIG) {
             pr_err("ram_console: kernel use sram, but pl/lk use dram.\n");
             memcpy(bufp, bufp_dram, sizeof(struct ram_console_buffer));
             bufp_dram->sig = 0;
@@ -621,7 +633,7 @@ static int __init ram_console_early_init(void)
     /*check if pl/lk use dram*/
     struct ram_console_buffer *bufp_dram = NULL;
 	bufp_dram = remap_lowmem(CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR, CONFIG_MTK_RAM_CONSOLE_DRAM_SIZE);
-    if (bufp_dram->sig == REBOOT_REASON_SIG) {
+    if (bufp_dram && bufp_dram->sig == REBOOT_REASON_SIG) {
         pr_err("ram_console: kernel use sram, but pl/lk use dram.\n");
         memcpy(bufp, bufp_dram, sizeof(struct ram_console_buffer));
         bufp_dram->sig = 0;
