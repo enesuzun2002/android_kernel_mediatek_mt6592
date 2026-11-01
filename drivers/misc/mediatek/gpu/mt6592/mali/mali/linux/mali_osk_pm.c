@@ -44,7 +44,7 @@ static struct workqueue_struct *mali_pm_wq = NULL;
 static struct work_struct mali_pm_wq_work_handle;
 
 static int g_current_freq_level = 0;
-static unsigned int loading_threshold = 80;
+static unsigned int loading_threshold = 65;
 static unsigned int CPI_level0_threshold = 111411; // 1.7 * 65536
 static unsigned int CPI_level1_threshold = 131072; // 2.0 * 65536
 
