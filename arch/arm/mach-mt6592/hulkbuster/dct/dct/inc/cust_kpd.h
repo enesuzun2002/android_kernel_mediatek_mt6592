@@ -61,10 +61,17 @@
 #define MTK_PMIC_PWR_KEY    8
 
 /* HW keycode [0 ~ 71] -> Linux keycode */
+/*
+ * ETAB5 (from the stock kernel's kpd_init_keymap source array): the keypad
+ * matrix carries only Volume Up at [0]. Volume Down is the MT6323 PMIC
+ * FCHR ("reset/home") key, reported through KPD_PMIC_RSTKEY_MAP as stock's
+ * kpd_pmic_rstkey_hal does. The P55N [9] = VOLUMEDOWN entry made Volume Up
+ * randomly register as Volume Down.
+ */
+#define KPD_PMIC_RSTKEY_MAP	KEY_VOLUMEDOWN
 #define KPD_INIT_KEYMAP()	\
 {	\
 	[0] = KEY_VOLUMEUP,		\
-	[9] = KEY_VOLUMEDOWN,		\
 }	 
 /*****************************************************************/
 /*******************Preload Customation***************************/
