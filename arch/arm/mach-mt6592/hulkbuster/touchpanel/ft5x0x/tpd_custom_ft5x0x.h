@@ -50,7 +50,13 @@
 #define TPD_HAVE_BUTTON
 #define TPD_KEY_COUNT              3
 #define TPD_KEYS                   {KEY_BACK, KEY_HOMEPAGE, KEY_APPSELECT}
-#define TPD_KEYS_DIM               {{2099, 105, 16, 16}, {2099, 59, 16, 16}, {2099, 0, 16, 16}}
+/*
+ * tpd_button() compares unsigned coordinates against center - h/2, so a box
+ * centered at y = 0 (stock) wraps to a huge bound and never matches: Recents
+ * is centered at y = 10 instead (covers 0..20). Heights widened from 16 to 24
+ * so Back's measured y = 97 is not on the edge of its 97..113 box.
+ */
+#define TPD_KEYS_DIM               {{2099, 105, 16, 24}, {2099, 59, 16, 24}, {2099, 10, 16, 20}}
 
 /* No calibration: raw coordinates are already screen coordinates. */
 #define TPD_CALIBRATION_MATRIX_ROTATION_NORMAL  {1600, 0, 0, 0, 1600, 0, 0, 0}
