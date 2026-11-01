@@ -22,27 +22,32 @@ extern "C" {
 //////////////////////////////////////////////////////////////////////////////
 
 
-#define CUST_EINT_MT6333_PMIC_NUM              0
+/* ETAB5: MT6333 IRQ is on EINT 8 (verified from the stock 3.10.72 kernel: mt_eint_registration(8, LOW)). The P55N DCT value 0 is a line held low on this board -> endless MT6333 EINT storm -> HW WDT reset. */
+#define CUST_EINT_MT6333_PMIC_NUM              8
 #define CUST_EINT_MT6333_PMIC_DEBOUNCE_CN      1
 #define CUST_EINT_MT6333_PMIC_TYPE							CUST_EINTF_TRIGGER_LOW
 #define CUST_EINT_MT6333_PMIC_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_ENABLE
 
-#define CUST_EINT_ALS_NUM              1
+/* ETAB5 stock: cm36283 on EINT 18, level low */
+#define CUST_EINT_ALS_NUM              18
 #define CUST_EINT_ALS_DEBOUNCE_CN      0
 #define CUST_EINT_ALS_TYPE							CUST_EINTF_TRIGGER_LOW
 #define CUST_EINT_ALS_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_DISABLE
 
-#define CUST_EINT_TOUCH_PANEL_NUM              2
+/* ETAB5 stock: ft5x06 on EINT 14, falling */
+#define CUST_EINT_TOUCH_PANEL_NUM              14
 #define CUST_EINT_TOUCH_PANEL_DEBOUNCE_CN      0
 #define CUST_EINT_TOUCH_PANEL_TYPE							CUST_EINTF_TRIGGER_FALLING
 #define CUST_EINT_TOUCH_PANEL_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_DISABLE
 
-#define CUST_EINT_ACCDET_NUM              4
+/* ETAB5 stock: accdet on GPIO168/EINT 168, initial polarity HIGH, debounce 256 */
+#define CUST_EINT_ACCDET_NUM              168
 #define CUST_EINT_ACCDET_DEBOUNCE_CN      256
-#define CUST_EINT_ACCDET_TYPE							CUST_EINTF_TRIGGER_LOW
+#define CUST_EINT_ACCDET_TYPE							CUST_EINTF_TRIGGER_HIGH
 #define CUST_EINT_ACCDET_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_ENABLE
 
-#define CUST_EINT_MSDC1_INS_NUM              5
+/* ETAB5 stock: SD card detect on EINT 9 */
+#define CUST_EINT_MSDC1_INS_NUM              9
 #define CUST_EINT_MSDC1_INS_DEBOUNCE_CN      1
 #define CUST_EINT_MSDC1_INS_TYPE							CUST_EINTF_TRIGGER_LOW
 #define CUST_EINT_MSDC1_INS_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_ENABLE
@@ -52,7 +57,7 @@ extern "C" {
 #define CUST_EINT_MHALL_TYPE							CUST_EINTF_TRIGGER_LOW
 #define CUST_EINT_MHALL_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_ENABLE
 
-#define CUST_EINT_GYRO_NUM              8
+#define CUST_EINT_GYRO_NUM              8 /* P55N leftover, unused here; EINT 8 belongs to MT6333 on ETAB5 */
 #define CUST_EINT_GYRO_DEBOUNCE_CN      0
 #define CUST_EINT_GYRO_TYPE							CUST_EINTF_TRIGGER_HIGH
 #define CUST_EINT_GYRO_DEBOUNCE_EN      CUST_EINT_DEBOUNCE_DISABLE
