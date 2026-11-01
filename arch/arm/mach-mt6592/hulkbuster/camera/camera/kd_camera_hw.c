@@ -69,8 +69,8 @@ u32 pinSet[2][8] = {
                         GPIO_OUT_ZERO,
                      GPIO_CAMERA_CMPDN1_PIN,
                         GPIO_CAMERA_CMPDN1_PIN_M_GPIO,
+                        GPIO_OUT_ZERO,                  /* stock: sub PDN is active-low */
                         GPIO_OUT_ONE,
-                        GPIO_OUT_ZERO,
                     },
                    };
 
