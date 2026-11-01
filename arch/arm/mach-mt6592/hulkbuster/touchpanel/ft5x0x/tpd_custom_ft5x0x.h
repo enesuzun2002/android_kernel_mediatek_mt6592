@@ -31,23 +31,22 @@
 /* FocalTech I2C address as used in MTK trees: 8-bit form (0x38 << 1). */
 #define FT5X0X_I2C_ADDR            0x70
 
-/* Panel resolution */
-#define TPD_RES_X                  1200
-#define TPD_RES_Y                  800
-
-/* The MTK tpd framework swaps the axes for landscape panels configured
- * via TPD_ROTATE_90; with RES 1200x800 + rotate 90 the controller space
- * (portrait) is transformed into the 1920x1200 landscape framebuffer. */
-#define TPD_ROTATE_90
+/*
+ * Panel resolution. Measured on the device: the FT5x06 already reports
+ * landscape framebuffer coordinates (0..1920 x 0..1200, origin top-left,
+ * no axis swap or mirror), so no rotation and no calibration matrix are
+ * applied. (The previous TPD_ROTATE_90 + 1600/4096 calibration squeezed,
+ * swapped and mirrored every touch.)
+ */
+#define TPD_RES_X                  1920
+#define TPD_RES_Y                  1200
 
 /* No hardware keys through the touch IC on this device. */
 #define TPD_KEY_COUNT              2
 #define TPD_KEYS                   {KEY_BACK, KEY_HOME}
 #define TPD_KEYS_DIM               {{540, 730, 80}, {600, 730, 80}}
 
-/* Calibration matrix in the style used by the other FocalTech projects
- * in this tree (values are the usual full-screen affine mapping). */
-#define TPD_HAVE_CALIBRATION
+/* No calibration: raw coordinates are already screen coordinates. */
 #define TPD_CALIBRATION_MATRIX_ROTATION_NORMAL  {1600, 0, 0, 0, 1600, 0, 0, 0}
 #define TPD_CALIBRATION_MATRIX_ROTATION_FACTORY {1600, 0, 0, 0, 1600, 0, 0, 0}
 
