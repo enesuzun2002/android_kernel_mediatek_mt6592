@@ -1440,7 +1440,7 @@ CONFIG_MTK_VIBRATOR=y
 #       expdb.bin --klog
 #
 # Leave this off once the kernel boots; it is only useful during bring-up.
-CONFIG_MTK_KLOG_SINK=y
+# CONFIG_MTK_KLOG_SINK is not set
 
 # Do not arm the MTK WDT during mtk_wdt_probe().
 #
@@ -3284,38 +3284,3 @@ CONFIG_ARCH_HAS_ATOMIC64_DEC_IF_POSITIVE=y
 # CONFIG_DDR is not set
 # CONFIG_VIRTUALIZATION is not set
 
-# Post-mortem logging (no UART available on this device).
-# pstore/ramoops: with a RAM region reserved for it (see the kernel README
-# note about reserving memory for ramoops) panics and oopses are written to
-# a RAM-backed store that survives the reboot and can be read back through
-# /sys/fs/pstore/. Without a reserved region this is simply inert.
-# LOG_BUF_SHIFT=20 gives an 8 MiB kernel ring buffer, which matters when a
-# boot produces a lot of driver spew before the crash.
-CONFIG_PSTORE_CONSOLE=y
-CONFIG_PSTORE=y
-CONFIG_PSTORE_RAM=y
-CONFIG_PSTORE_PMSG=y
-
-# MTK RAM console (see the "Post-mortem logging" block below): there is no
-# UART on this tablet and the board ships no device tree (the bootloader
-# replaces the kernel command line too), so the only way to keep a kernel
-# log across a crash or a watchdog reset is this: MTK reserves the DRAM
-# window below in mt_reserve() before the allocator runs and copies the
-# console output there. Read it back with:
-#     adb shell cat /proc/last_kmsg
-# 0x7FF00000 + 0x10000 is the top 64 KiB of this 2 GB device's DRAM. MTK's
-# dynamic reservations (arm_memblock_steal) allocate from the bottom of
-# DRAM, and the first boot prints '[PHY layout]' lines for each of them,
-# so the window can be verified not to collide. Bump _DRAM_SIZE to 0x40000
-# for more history; each new dump rolls over in place.
-
-# Framebuffer console: the kernel command line the bootloader passes already
-# contains "console=tty0", but without these the text goes nowhere (that is
-# why the boot of this kernel looks like a silent panel flash and then a
-# reset). With them the kernel log is painted onto the panel, which is the
-# only live log channel this device has (no UART, and adb never comes up
-# because the board resets before userspace).
-CONFIG_VT=y
-CONFIG_VT_CONSOLE=y
-CONFIG_FB_CONSOLE=y
-CONFIG_FRAMEBUFFER_CONSOLE=y
