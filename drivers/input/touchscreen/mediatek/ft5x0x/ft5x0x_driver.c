@@ -383,13 +383,6 @@ static int touch_event_handler(void *unused)
 	int i = 0;
 	struct touch_info cinfo, pinfo;
 
-#ifdef TPD_HAVE_BUTTON
-	struct touch_info finfo;
-
-	memset(&finfo, 0, sizeof(struct touch_info));
-	for(i = 0; i < TPD_SUPPORT_POINTS; i++)
-		finfo.p[i] = 1;
-#endif
 
 	struct sched_param param = { .sched_priority = RTPM_PRIO_TPD };
 	sched_setscheduler(current, SCHED_RR, &param);
@@ -409,45 +402,23 @@ static int touch_event_handler(void *unused)
 		if(tpd_touchinfo(&cinfo, &pinfo))
 		{
 #ifdef TPD_HAVE_BUTTON
-			if(cinfo.p[0] == 0)
-				memcpy(&finfo, &cinfo, sizeof(struct touch_info));
-#endif
-
-			if((cinfo.y[0] >= TPD_RES_Y) && (pinfo.y[0] < TPD_RES_Y) && ((pinfo.p[0] == 0) || (pinfo.p[0] == 2)))
-			{
-				TPD_DEBUG("Dummy release --->\n");
-				tpd_up(pinfo.x[0], pinfo.y[0]);
+			/*
+			 * The capacitive keys report as touches past the right
+			 * edge of the 1920x1200 area (x > TPD_RES_X). A touch
+			 * there presses the matching key; leaving the strip or
+			 * lifting the finger releases it.
+			 */
+			if ((cinfo.count > 0) && (cinfo.x[0] > TPD_RES_X)) {
+				tpd_button(cinfo.x[0], cinfo.y[0], 1);
 				input_sync(tpd->dev);
 				continue;
 			}
-
-#ifdef TPD_HAVE_BUTTON
-			if((cinfo.y[0] <= TPD_RES_Y && cinfo.y[0] != 0) && (pinfo.y[0] > TPD_RES_Y) 
-				&& ((pinfo.p[0] == 0) || (pinfo.p[0] == 2)))
-			{
-				TPD_DEBUG("Dummy key release --->\n");
-				tpd_button(pinfo.x[0], pinfo.y[0], 0);
-				input_sync(tpd->dev);
-				continue;
-			}
-
-			if((cinfo.y[0] > TPD_RES_Y) || (pinfo.y[0] > TPD_RES_Y))
-			{
-				if(finfo.y[0] > TPD_RES_Y)
-				{
-					if((cinfo.p[0] == 0) || (cinfo.p[0] == 2))
-					{
-						TPD_DEBUG("Key press --->\n");
-						tpd_button(pinfo.x[0], pinfo.y[0], 1);
-					}
-					else if((cinfo.p[0] == 1) && ((pinfo.p[0] == 0) || (pinfo.p[0] == 2)))
-					{
-						TPD_DEBUG("Key release --->\n");
-						tpd_button(pinfo.x[0], pinfo.y[0], 0);
-					}
+			if (tpd->btn_state) {
+				tpd_button(0, 0, 0);
+				if (cinfo.count == 0) {
 					input_sync(tpd->dev);
+					continue;
 				}
-				continue;
 			}
 #endif
 

@@ -41,10 +41,16 @@
 #define TPD_RES_X                  1920
 #define TPD_RES_Y                  1200
 
-/* No hardware keys through the touch IC on this device. */
-#define TPD_KEY_COUNT              2
-#define TPD_KEYS                   {KEY_BACK, KEY_HOME}
-#define TPD_KEYS_DIM               {{540, 730, 80}, {600, 730, 80}}
+/*
+ * Capacitive keys on the touch IC, reported past the right edge of the
+ * screen (x = 2099). Table copied from the stock ETAB5 kernel and matching
+ * on-device measurements: left (2099,97) = Back, middle (2099,62) = Home,
+ * right (2099,0) = Recents. DIM entries are {center x, center y, w, h}.
+ */
+#define TPD_HAVE_BUTTON
+#define TPD_KEY_COUNT              3
+#define TPD_KEYS                   {KEY_BACK, KEY_HOMEPAGE, KEY_APPSELECT}
+#define TPD_KEYS_DIM               {{2099, 105, 16, 16}, {2099, 59, 16, 16}, {2099, 0, 16, 16}}
 
 /* No calibration: raw coordinates are already screen coordinates. */
 #define TPD_CALIBRATION_MATRIX_ROTATION_NORMAL  {1600, 0, 0, 0, 1600, 0, 0, 0}
