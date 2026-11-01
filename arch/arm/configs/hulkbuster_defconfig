@@ -1609,17 +1609,16 @@ CONFIG_MTK_DEVAPC_DRIVER=y
 CONFIG_MTK_DEVINFO_DRIVER=y
 CONFIG_MT_SCHED=y
 CONFIG_MTK_LCM=y
-CONFIG_MTK_CCCI_DEVICES=y
-CONFIG_MTK_ENABLE_MD1=y
-CONFIG_MTK_MD1_SUPPORT=3
-CONFIG_MD1_SIZE=0x01600000
-CONFIG_MD1_SMEM_SIZE=0x200000
+# The ETAB5 is WiFi-only and the stock kernel has no CCCI modem driver (only
+# the ccci_util stub hooks). With it enabled, ccci_mdinit's "boot_md" write
+# runs md_power_on(), which spins in spm_mtcmos_ctrl_mdsys1() for a modem
+# power domain that never acks - while holding clock_lock - and deadlocks
+# every clock user (surfaceflinger, audioserver, idle) until the WDT fires.
+# CONFIG_MTK_CCCI_DEVICES is not set
 # CONFIG_MTK_ENABLE_MD2 is not set
 CONFIG_MTK_MD_SBP_CUSTOM_VALUE=""
 CONFIG_MTK_MD2_SBP_CUSTOM_VALUE=""
 # CONFIG_MTK_NET_CCMNI is not set
-CONFIG_MTK_CCCI_EXT=y
-CONFIG_MTK_CCCI_DRIVER=y
 # CONFIG_MTK_ECCCI_DRIVER is not set
 # CONFIG_MTK_C2K_SUPPORT is not set
 CONFIG_CUSTOM_KERNEL_SSW="ssw_single"
