@@ -38,8 +38,20 @@
 #include <linux/slab.h>
 #include <linux/pid_namespace.h>
 #include <linux/security.h>
+#include <linux/ratelimit.h>
 
 #include "binder.h"
+
+/*
+ * The msm-3.10 driver holds preemption off while binder_main_lock is held
+ * (a latency optimisation) and re-enables it around every user access.
+ * On the MT6592 kernel a forked process's binder threads started failing
+ * BINDER_WRITE_READ with -EFAULT right after a child exited, so run this
+ * driver like the stock MTK one did: preemptible, under the mutex only.
+ */
+#define binder_preempt_disable()		do { } while (0)
+#define binder_preempt_enable()			do { } while (0)
+#define binder_preempt_enable_no_resched()	do { } while (0)
 
 #ifndef PAGE_ALIGNED
 #define PAGE_ALIGNED(addr)	IS_ALIGNED((unsigned long)(addr), PAGE_SIZE)
@@ -420,9 +432,9 @@ static int task_get_unused_fd_flags(struct binder_proc *proc, int flags)
 	rlim_cur = task_rlimit(proc->tsk, RLIMIT_NOFILE);
 	unlock_task_sighand(proc->tsk, &irqs);
 
-	preempt_enable_no_resched();
+	binder_preempt_enable_no_resched();
 	ret = __alloc_fd(files, 0, rlim_cur, flags);
-	preempt_disable();
+	binder_preempt_disable();
 
 	return ret;
 }
@@ -434,9 +446,9 @@ static void task_fd_install(
 	struct binder_proc *proc, unsigned int fd, struct file *file)
 {
 	if (proc->files) {
-		preempt_enable_no_resched();
+		binder_preempt_enable_no_resched();
 		__fd_install(proc->files, fd, file);
-		preempt_disable();
+		binder_preempt_disable();
 	}
 }
 
@@ -465,7 +477,7 @@ static inline void binder_lock(const char *tag)
 {
 	trace_binder_lock(tag);
 	mutex_lock(&binder_main_lock);
-	preempt_disable();
+	binder_preempt_disable();
 	trace_binder_locked(tag);
 }
 
@@ -473,7 +485,7 @@ static inline void binder_unlock(const char *tag)
 {
 	trace_binder_unlock(tag);
 	mutex_unlock(&binder_main_lock);
-	preempt_enable();
+	binder_preempt_enable();
 }
 
 static inline void *kzalloc_preempt_disabled(size_t size)
@@ -484,9 +496,9 @@ static inline void *kzalloc_preempt_disabled(size_t size)
 	if (ptr)
 		return ptr;
 
-	preempt_enable_no_resched();
+	binder_preempt_enable_no_resched();
 	ptr = kzalloc(size, GFP_KERNEL);
-	preempt_disable();
+	binder_preempt_disable();
 
 	return ptr;
 }
@@ -495,9 +507,12 @@ static inline long copy_to_user_preempt_disabled(void __user *to, const void *fr
 {
 	long ret;
 
-	preempt_enable_no_resched();
+	binder_preempt_enable_no_resched();
 	ret = copy_to_user(to, from, n);
-	preempt_disable();
+	binder_preempt_disable();
+	if (ret)
+		pr_err_ratelimited("binder: %d:%d copy_to_user %p failed\n",
+				   current->tgid, current->pid, to);
 	return ret;
 }
 
@@ -505,27 +520,32 @@ static inline long copy_from_user_preempt_disabled(void *to, const void __user *
 {
 	long ret;
 
-	preempt_enable_no_resched();
+	binder_preempt_enable_no_resched();
 	ret = copy_from_user(to, from, n);
-	preempt_disable();
+	binder_preempt_disable();
+	if (ret)
+		pr_err_ratelimited("binder: %d:%d copy_from_user %p failed\n",
+				   current->tgid, current->pid, from);
 	return ret;
 }
 
 #define get_user_preempt_disabled(x, ptr)	\
 ({						\
 	int __ret;				\
-	preempt_enable_no_resched();		\
+	binder_preempt_enable_no_resched();		\
 	__ret = get_user(x, ptr);		\
-	preempt_disable();			\
+	binder_preempt_disable();			\
 	__ret;					\
 })
 
 #define put_user_preempt_disabled(x, ptr)	\
 ({						\
 	int __ret;				\
-	preempt_enable_no_resched();		\
+	binder_preempt_enable_no_resched();		\
 	__ret = put_user(x, ptr);		\
-	preempt_disable();			\
+	binder_preempt_disable();			\
+	if (__ret)				\
+		pr_err_ratelimited("binder: put_user line %d failed\n", __LINE__); \
 	__ret;					\
 })
 
@@ -671,7 +691,7 @@ static int __binder_update_page_range(struct binder_proc *proc, int allocate,
 	else
 		mm = get_task_mm(proc->tsk);
 
-	preempt_enable_no_resched();
+	binder_preempt_enable_no_resched();
 
 	if (mm) {
 		down_write(&mm->mmap_sem);
@@ -729,7 +749,7 @@ static int __binder_update_page_range(struct binder_proc *proc, int allocate,
 		mmput(mm);
 	}
 
-	preempt_disable();
+	binder_preempt_disable();
 
 	return 0;
 
@@ -754,7 +774,7 @@ err_no_vma:
 		mmput(mm);
 	}
 
-	preempt_disable();
+	binder_preempt_disable();
 
 	return -ENOMEM;
 }
@@ -3498,10 +3518,10 @@ static int binder_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 
 	/* binder_update_page_range assumes preemption is disabled */
-	preempt_disable();
+	binder_preempt_disable();
 	ret = __binder_update_page_range(proc, 1, proc->buffer,
 					 proc->buffer + BINDER_MIN_ALLOC, vma);
-	preempt_enable_no_resched();
+	binder_preempt_enable_no_resched();
 	if (ret) {
 		ret = -ENOMEM;
 		failure_string = "alloc small buf";
@@ -3803,7 +3823,7 @@ static void binder_deferred_func(struct work_struct *work)
 		trace_binder_locked(__func__);
 
 		mutex_lock(&binder_deferred_lock);
-		preempt_disable();
+		binder_preempt_disable();
 		if (!hlist_empty(&binder_deferred_list)) {
 			proc = hlist_entry(binder_deferred_list.first,
 					struct binder_proc, deferred_work_node);
@@ -3831,7 +3851,7 @@ static void binder_deferred_func(struct work_struct *work)
 
 		trace_binder_unlock(__func__);
 		mutex_unlock(&binder_main_lock);
-		preempt_enable_no_resched();
+		binder_preempt_enable_no_resched();
 		if (files)
 			put_files_struct(files);
 	} while (proc);
