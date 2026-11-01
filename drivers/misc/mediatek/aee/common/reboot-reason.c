@@ -310,9 +310,21 @@ asmlinkage void aee_stop_nested_panic(struct pt_regs *regs)
 	cpu = get_HW_cpuid();
 	aee_rec_step_nested_panic(step_base + 2);
 	/*nested panic may happens more than once on many/single cpus */
-	if (atomic_read(&nested_panic_time) < 3)
-		aee_nested_printf("\nCPU%dpanic%d@%d\n", cpu, nested_panic_time, prev_fiq_step);
+	/*
+	 * Count this entry before printing anything. If aee_nested_printf()
+	 * itself faults, re-entering here with the counter still at 0 used to
+	 * print the same line forever, overwriting the original oops in the
+	 * ram console. After a few rounds, stop and wait for the watchdog so
+	 * the first panic stays readable in /proc/last_kmsg.
+	 */
 	atomic_inc(&nested_panic_time);
+	if (atomic_read(&nested_panic_time) > 4) {
+		local_irq_disable();
+		while (1)
+			cpu_relax();
+	}
+	if (atomic_read(&nested_panic_time) <= 3)
+		aee_nested_printf("\nCPU%dpanic%d@%d\n", cpu, atomic_read(&nested_panic_time) - 1, prev_fiq_step);
 
 	switch (atomic_read(&nested_panic_time)) {
 	case 2:
