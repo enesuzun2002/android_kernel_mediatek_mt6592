@@ -18,7 +18,6 @@
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <linux/of_reserved_mem.h>
-#include <linux/notifier.h>
 #include <linux/pstore.h>
 #include <asm/io.h>
 #include <mach/mt_reg_dump.h>
@@ -157,23 +156,8 @@ unsigned int ram_console_size(void)
 #include <linux/mmc/sd_misc.h>
 extern int card_dump_func_write(unsigned char *buf, unsigned int len, unsigned long long offset,
 				int dev);
-extern int card_dump_func_read(unsigned char *buf, unsigned int len, unsigned long long offset,
-			       int dev);
 
-/*
- * Where last_kmsg_store_to_emmc() persists the SRAM ram console on
- * shutdown/panic.
- *
- * NOT 0x700000: that offset belongs to ipanic_pstore.c
- * (AEE_POWEROFF_OFFSET / AEE_POWEROFF_MAGIC 0x43474244). Both mechanisms
- * used the same offset and the same magic, so writing ours there clobbered
- * ipanic's poweroff header - which is exactly what the dump at 0x700000
- * was: an ipanic poweroff header, not a ram console buffer.
- *
- * 0x680000 is inside the verified-erased gap 0x670000-0x700000 in the
- * dump; nothing else owns it.
- */
-#define EMMC_ADDR 0X680000
+#define EMMC_ADDR 0X700000
 static char *ram_console2_log;
 extern int boot_finish;
 extern struct file *expdb_open(void);
@@ -225,43 +209,32 @@ static const struct file_operations ram_console2_file_ops = {
 static int emmc_read_last_kmsg(void *data)
 {
 	int ret;
+	struct file *filp;
 
 	struct proc_dir_entry *entry;
 	struct ram_console_buffer *bufp = NULL;
+	int timeout = 0;
 
 	ram_console2_log = kzalloc(ram_console_buffer->sz_buffer, GFP_KERNEL);
 	if (ram_console2_log == NULL) {
 		pr_err("ram_console: malloc size 2 error!\n");
 		return 1;
 	}
-
-	/*
-	 * Read expdb through card_dump_func_read(), not through
-	 * filp_open("/dev/expdb").
-	 *
-	 * This has never worked - not on the working kernel either, which
-	 * logs "ram_console: open expdb partition error [-2]" over and over
-	 * from this very thread. -2 is -ENOENT, not -ENODEV: no misc device
-	 * named "expdb" is registered anywhere in this tree and
-	 * CONFIG_DEVTMPFS is off, so the node only exists once userspace
-	 * creates it. This thread is a late_initcall, long before ueventd
-	 * runs, so the path can never be there.
-	 *
-	 * The old code also cached the ERR_PTR, so its own retry loop just
-	 * spun on one stale error for 30 s (60 x msleep(500)).
-	 *
-	 * card_dump_func_read() drives the msdc host directly and needs no
-	 * node, which is why the matching *write* in
-	 * last_kmsg_store_to_emmc() has always worked. Using the same API on
-	 * both sides also matches ipanic and klog_sink.
-	 */
-	ret = card_dump_func_read((unsigned char *)ram_console2_log,
-				  (unsigned int)ram_console_buffer->sz_buffer,
-				  EMMC_ADDR, DUMP_INTO_BOOT_CARD_IPANIC);
-	if (ret != 0) {
+	
+	do {
+		filp = expdb_open();
+		if (timeout++ > 60) {
+			pr_err("ram_console: open expdb partition error [%ld]!\n", PTR_ERR(filp));
+			return 1;
+		}
+		msleep(500);
+	} while (IS_ERR(filp));
+	ret = kernel_read(filp, EMMC_ADDR, ram_console2_log, ram_console_buffer->sz_buffer);
+	fput(filp);
+	if (IS_ERR(ERR_PTR(ret))) {
 		kfree(ram_console2_log);
 		ram_console2_log = NULL;
-		pr_err("ram_console: read emmc data 2 error! [%d]\n", ret);
+		pr_err("ram_console: read emmc data 2 error!\n");
 		return 1;
 	}
 
@@ -545,16 +518,9 @@ static int __init ram_console_init(struct ram_console_buffer *buffer, size_t buf
 	buffer->off_console = buffer->off_linux + ALIGN(sizeof(struct last_reboot_reason), 64);
 	buffer->sz_console = buffer->sz_buffer - buffer->off_console;
 	memset((void*)buffer + buffer->off_linux, 0, buffer_size - buffer->off_linux);
-	/*
-	 * Keep the ram console as a console even with CONFIG_PSTORE=y. Stock
-	 * has CONFIG_PSTORE off, which is why its register_console() runs and
-	 * /proc/last_kmsg actually contains printk output. With PSTORE on, this
-	 * block was skipped, so the SRAM buffer captured nothing from printk
-	 * and /proc/last_kmsg was empty on our kernel - even though it was
-	 * enabled. We keep PSTORE for ipanic's pstore path and register the
-	 * console anyway.
-	 */
+#ifndef CONFIG_PSTORE
 	register_console(&ram_console);
+#endif
 	return 0;
 }
 
@@ -618,53 +584,10 @@ static int __init dt_get_ram_console(unsigned long node, const char *uname, int 
 #endif
 #endif
 
-/*
- * This 3.10 tree has no PANIC_NOTIFY: MTK routes panics through its own
- * kernel-internal chain, which is what aee_ipanic_init() registers on.
- */
-extern struct atomic_notifier_head panic_notifier_list;
-
-static bool ram_console_flushed;
-
-static int ram_console_panic(struct notifier_block *nb, unsigned long action,
-			     void *data)
-{
-	/*
-	 * machine_shutdown() is the only caller of
-	 * last_kmsg_store_to_emmc() upstream, which means the log is only
-	 * ever persisted on a *clean* reboot. On this board the common
-	 * failure is a hang that gets force-reset, so that path never runs
-	 * and the previous boot's log is simply lost.
-	 *
-	 * Register here, at console_initcall, rather than in
-	 * ram_console_late_init: ipanic registers its own notifier from
-	 * aee_ipanic_init() at module_init, which is a later initcall level.
-	 * Registering first means this runs first, so the 7 KiB flush
-	 * completes before ipanic starts its (much larger) dump. Both are
-	 * on the same atomic chain, so they cannot interleave.
-	 */
-	if (ram_console_flushed)
-		return NOTIFY_DONE;
-	ram_console_flushed = true;
-
-#if defined(CONFIG_MTK_EMMC_SUPPORT) && defined(CONFIG_MTK_AEE_IPANIC)
-	last_kmsg_store_to_emmc();
-#endif
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block ram_console_nb = {
-	.notifier_call = ram_console_panic,
-};
-
 static int __init ram_console_early_init(void)
 {
 	struct ram_console_buffer *bufp = NULL;
 	size_t buffer_size = 0;
-	int ret = 0;
-
-	/* Bring-up breadcrumb stage S1 = reached console_initcall. */
-	__raw_writel(0x00003153, 0xF900DC04);   /* "S1" */
 #if defined(CONFIG_MTK_RAM_CONSOLE_USING_SRAM)
 #ifdef CONFIG_OF
 	mem_desc_t sram = {0};
@@ -718,20 +641,7 @@ static int __init ram_console_early_init(void)
 
 	pr_err("ram_console: buffer start: 0x%p, size: 0x%zx\n", bufp, buffer_size);
 	mtk_cpu_num = num_present_cpus();
-
-	/*
-	 * Register the panic notifier only after ram_console_init() has set
-	 * ram_console_buffer: last_kmsg_store_to_emmc() dereferences it, and
-	 * registering before init created a window where a very early panic
-	 * would NULL-deref during panic - i.e. an instant reset, which is
-	 * exactly the symptom we are debugging.
-	 */
-	ret = ram_console_init(bufp, buffer_size);
-
-	if (ret == 0)
-		atomic_notifier_chain_register(&panic_notifier_list, &ram_console_nb);
-
-	return ret;
+	return ram_console_init(bufp, buffer_size);
 }
 
 static int ram_console_show(struct seq_file *m, void *v)
