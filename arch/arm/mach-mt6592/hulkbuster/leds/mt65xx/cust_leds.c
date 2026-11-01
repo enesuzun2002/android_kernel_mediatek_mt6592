@@ -111,6 +111,21 @@ unsigned int Cust_SetBacklight(int level, int div)
  *By default, clock_source = 0 and div = 0 => PWM freq. = 26 KHz 
  *-------------------------------------------------------------------------------------------
  */
+/*
+ * ETAB5 capacitive key backlight. The stock kernel adds its own LED entries
+ * for this ("touchkey-backlight" plus "back" = PMIC NLED ISINK2, "home" =
+ * ISINK1, "menu" = ISINK0). Android's lights HAL only drives
+ * "button-backlight", so route that to all three key sinks together.
+ */
+extern int mt_brightness_set_pmic(enum mt65xx_led_pmic pmic_type, u32 level, u32 div);
+static int etab5_key_backlight_set(int level)
+{
+	mt_brightness_set_pmic(MT65XX_LED_PMIC_NLED_ISINK0, level, 0);
+	mt_brightness_set_pmic(MT65XX_LED_PMIC_NLED_ISINK1, level, 0);
+	mt_brightness_set_pmic(MT65XX_LED_PMIC_NLED_ISINK2, level, 0);
+	return 0;
+}
+
 static struct cust_mt65xx_led cust_led_list[MT65XX_LED_TYPE_TOTAL] = {
 //++++rgk bug_id:  modify by jiangwanwei 140303 start++++
 #if 0
@@ -119,21 +134,21 @@ static struct cust_mt65xx_led cust_led_list[MT65XX_LED_TYPE_TOTAL] = {
 	{"blue",              MT65XX_LED_MODE_NONE, -1,{0}},
 	{"jogball-backlight", MT65XX_LED_MODE_NONE, -1,{0}},
 	{"keyboard-backlight",MT65XX_LED_MODE_NONE, -1,{0}},
-	{"button-backlight",  MT65XX_LED_MODE_NONE, -1,{0}},
+	{"button-backlight",  MT65XX_LED_MODE_GPIO, (int)etab5_key_backlight_set,{0}},
 	{"lcd-backlight",     MT65XX_LED_MODE_CUST_BLS_PWM, (int)disp_bls_set_backlight,{0}},
 #else
 	/*
-	 * ETAB5: as the stock kernel's cust_led_list - no software RGB or
-	 * button LEDs, only the BLS-PWM LCD backlight. The P55N table drove
-	 * PMIC ISINK0..3 as red/green/blue/button LEDs, which left the Back
-	 * key light stuck on as the "red" charging/notification LED.
+	 * ETAB5: no RGB notification LED (stock leaves red/green/blue NONE).
+	 * The P55N table drove PMIC ISINK0..2 as red/green/blue, which left a
+	 * key light stuck on as the "red" charging/notification LED. Those
+	 * sinks are the key backlights; see etab5_key_backlight_set().
 	 */
 	{"red",               MT65XX_LED_MODE_NONE, -1,{0}},
 	{"green",             MT65XX_LED_MODE_NONE, -1,{0}},
 	{"blue",              MT65XX_LED_MODE_NONE, -1,{0}},
 	{"jogball-backlight", MT65XX_LED_MODE_NONE, -1,{0}},
 	{"keyboard-backlight",MT65XX_LED_MODE_NONE, -1,{0}},
-	{"button-backlight",  MT65XX_LED_MODE_NONE, -1,{0}},
+	{"button-backlight",  MT65XX_LED_MODE_GPIO, (int)etab5_key_backlight_set,{0}},
 	{"lcd-backlight",     MT65XX_LED_MODE_CUST_BLS_PWM, (int)disp_bls_set_backlight,{0}},
 
 #endif
