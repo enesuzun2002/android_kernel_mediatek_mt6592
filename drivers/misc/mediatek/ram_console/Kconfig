@@ -9,6 +9,17 @@ config MTK_RAM_CONSOLE_USING_DRAM
 	bool "Using DRAM as ram console storage"
 	depends on MTK_RAM_CONSOLE
 
+config MTK_RAM_CONSOLE_PSTORE
+	bool "Route the MTK ram console through pstore"
+	depends on MTK_RAM_CONSOLE && PSTORE
+	default n
+	help
+	  The MTK ram console used to switch itself to a pstore backed
+	  implementation whenever CONFIG_PSTORE was set. Keep that behind
+	  its own option so that enabling pstore/ramoops for
+	  /sys/fs/pstore does not stop the SRAM ram console from capturing
+	  the kernel log for /proc/last_kmsg.
+
 config MTK_RAM_CONSOLE_SIZE
 	hex "MTK RAM console  address"
 	default 0

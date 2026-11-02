@@ -2885,6 +2885,21 @@ CONFIG_SDCARD_FS=y
 # CONFIG_UFS_FS is not set
 # CONFIG_F2FS_FS is not set
 # CONFIG_YAFFS_FS is not set
+
+# pstore/ramoops: the previous boot's kernel log in /sys/fs/pstore/console-ramoops
+# (Pie's init.rc already mounts pstore and chowns the files) after ANY reset,
+# including hardware-watchdog resets that leave no ipanic record. The backing
+# store is a 2 MiB highmem block reserved at 0xB0000000 and registered as a
+# "ramoops" platform device by mach-mt6592/mt_devs.c (see
+# CONFIG_MT6592_RAMOOPS_ADDR). pmsg gives logd a /dev/pmsg0 to persist logcat;
+# the function-tracer record is off.
+CONFIG_PSTORE=y
+CONFIG_PSTORE_CONSOLE=y
+CONFIG_PSTORE_PMSG=y
+# CONFIG_PSTORE_FTRACE is not set
+CONFIG_PSTORE_RAM=y
+CONFIG_MT6592_RAMOOPS_ADDR=0xB0000000
+CONFIG_MT6592_RAMOOPS_SIZE=0x200000
 CONFIG_NETWORK_FILESYSTEMS=y
 # CONFIG_NFS_FS is not set
 # CONFIG_NFSD is not set
