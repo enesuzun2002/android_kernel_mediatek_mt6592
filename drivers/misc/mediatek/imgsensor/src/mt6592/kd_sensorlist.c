@@ -223,6 +223,30 @@ static struct cdev * g_pCAMERA_HW_CharDrv = NULL;
 
 static struct class *sensor_class = NULL;
 
+/* module-ID straps sampled by kdCISModulePowerOn() (kd_camera_hw.c) */
+extern int g_kdMainCamID;
+extern int g_kdSubCamID;
+
+/* stock output: bare string, no trailing newline; nonzero -> LiteOn */
+static ssize_t kd_camid_show(char *buf, int id)
+{
+    strcpy(buf, id ? "1 (LiteOn)" : "0 (SHZBG)");
+    return strlen(buf);
+}
+
+static ssize_t MainCamID_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return kd_camid_show(buf, g_kdMainCamID);
+}
+
+static ssize_t SubCamID_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+    return kd_camid_show(buf, g_kdSubCamID);
+}
+
+static DEVICE_ATTR(MainCamID, 0444, MainCamID_show, NULL);
+static DEVICE_ATTR(SubCamID, 0444, SubCamID_show, NULL);
+
 
 static atomic_t g_CamHWOpend;
 
@@ -1896,6 +1920,12 @@ inline static int RegisterCAMERA_HWCharDrv(void)
         return ret;
     }
     sensor_device = device_create(sensor_class, NULL, g_CAMERA_HWdevno, NULL, CAMERA_HW_DRVNAME1);
+    if (!IS_ERR(sensor_device)) {
+        if (device_create_file(sensor_device, &dev_attr_MainCamID))
+            PK_DBG("Unable to create MainCamID attr\n");
+        if (device_create_file(sensor_device, &dev_attr_SubCamID))
+            PK_DBG("Unable to create SubCamID attr\n");
+    }
 
     return 0;
 }

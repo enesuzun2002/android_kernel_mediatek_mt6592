@@ -36,6 +36,17 @@
 #define PK_XLOG_INFO(fmt, args...)
 #endif
 #define CAMERA_POWER_ON_PIN GPIO115
+/*
+ * Stock kdCISModulePowerOn() samples the module-ID straps (main: GPIO112,
+ * sub: GPIO113) with mt_get_gpio_in() on every power-on, after the sensor
+ * RST/PDN pins are set and before the rails are enabled, and stores the raw
+ * return value in two globals (stock 0xc0bdaa78 / 0xc0bdaa7c).  They back
+ * /sys/class/sensordrv/kd_camera_hw/{MainCamID,SubCamID} (kd_sensorlist.c).
+ */
+int g_kdMainCamID = 0;
+int g_kdSubCamID = 0;
+#define KD_MAIN_CAMID_PIN GPIO112
+#define KD_SUB_CAMID_PIN  GPIO113
 kal_bool searchMainSensor = KAL_TRUE;
 
 /*
@@ -94,6 +105,12 @@ static int kdCISModulePowerStock(u32 idx, BOOL On, char *mode_name, u32 pinSet[2
         kdCamPinSet(pinSet[idx][IDX_PS_CMPDN], pinSet[idx][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[idx][IDX_PS_CMPDN+IDX_PS_OFF]);
         kdCamPinSet(pinSet[oth][IDX_PS_CMRST], pinSet[oth][IDX_PS_CMRST+IDX_PS_MODE], pinSet[oth][IDX_PS_CMRST+IDX_PS_OFF]);
         kdCamPinSet(pinSet[oth][IDX_PS_CMPDN], pinSet[oth][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[oth][IDX_PS_CMPDN+IDX_PS_OFF]);
+
+        /* stock: sample the module-ID strap here (no mode/dir change) */
+        if (0 == idx)
+            g_kdMainCamID = mt_get_gpio_in(KD_MAIN_CAMID_PIN);
+        else
+            g_kdSubCamID = mt_get_gpio_in(KD_SUB_CAMID_PIN);
 
         if (0 == idx) {
             /* main: VCAMD 1.8, VCAMA 2.8, VCAM_IO 1.8, VCAM_AF 2.8, 5ms apart */
