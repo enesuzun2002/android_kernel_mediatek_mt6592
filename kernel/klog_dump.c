@@ -57,10 +57,13 @@ module_param(periodic, int, 0444);
  *  - optionally a timed snapshot: klog_dump.panic_after=<seconds since boot>
  *    (LK drops the boot.img cmdline, so set it in CONFIG_CMDLINE, or write
  *    /sys/module/klog_dump/parameters/panic_after from init.rc).
- * Disable with klog_dump.panic_on_reboot=0 / klog_dump.panic_on_poweroff=0. */
-static bool panic_on_reboot = true;
+ * The ROM boots now, so these are OFF by default: enable them for a debug
+ * session with klog_dump.panic_on_reboot=1 / klog_dump.panic_on_poweroff=1
+ * (CONFIG_CMDLINE) or by writing /sys/module/klog_dump/parameters/. A real
+ * kernel panic still lands in recovery with the log saved by ipanic. */
+static bool panic_on_reboot;
 module_param(panic_on_reboot, bool, 0644);
-static bool panic_on_poweroff = true;
+static bool panic_on_poweroff;
 module_param(panic_on_poweroff, bool, 0644);
 static int panic_after;
 module_param(panic_after, int, 0644);
