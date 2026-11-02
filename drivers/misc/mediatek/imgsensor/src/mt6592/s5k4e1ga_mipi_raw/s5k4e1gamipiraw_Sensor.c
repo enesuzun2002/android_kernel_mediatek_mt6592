@@ -1209,6 +1209,9 @@ UINT32 S5K4E1GAClose(void)
     return ERROR_NONE;
 }	/* S5K4E1GAClose() */
 
+/* stock always programs IMAGE_HV_MIRROR (0x0101=0x00), whatever the HAL asks for */
+#define S5K4E1GA_ORIENTATION IMAGE_HV_MIRROR
+
 void S5K4E1GASetFlipMirror(kal_int32 imgMirror)
 {
 	
@@ -1275,9 +1278,9 @@ UINT32 S5K4E1GAPreview(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	SENSORDB("[sofia][S5K4E1GAPreview] mirror&flip %d:\n",sensor_config_data->SensorImageMirror);
 	//SENSORDB("[S5K4E1GAPreview] mirror&flip: %d \n",sensor_config_data->SensorImageMirror);
 	spin_lock(&s5k4e1gamipiraw_drv_lock);
-	s5k4e1ga.imgMirror = sensor_config_data->SensorImageMirror;
+	s5k4e1ga.imgMirror = S5K4E1GA_ORIENTATION;
 	spin_unlock(&s5k4e1gamipiraw_drv_lock);
-	S5K4E1GASetFlipMirror(sensor_config_data->SensorImageMirror);
+	S5K4E1GASetFlipMirror(S5K4E1GA_ORIENTATION);
 	
 	//set dummy
 	spin_lock(&s5k4e1gamipiraw_drv_lock);
@@ -1320,10 +1323,10 @@ UINT32 S5K4E1GACapture(MSDK_SENSOR_EXPOSURE_WINDOW_STRUCT *image_window,
 	s5k4e1ga.sensorMode = SENSOR_MODE_CAPTURE;
 		
 	//set mirror & flip
-	s5k4e1ga.imgMirror = sensor_config_data->SensorImageMirror;
+	s5k4e1ga.imgMirror = S5K4E1GA_ORIENTATION;
 	spin_unlock(&s5k4e1gamipiraw_drv_lock);
 	SENSORDB("[S5K4E1GACapture] mirror&flip: %d\n",sensor_config_data->SensorImageMirror);
-	S5K4E1GASetFlipMirror(sensor_config_data->SensorImageMirror);
+	S5K4E1GASetFlipMirror(S5K4E1GA_ORIENTATION);
 	
 	// set dummy
 	spin_lock(&s5k4e1gamipiraw_drv_lock);
@@ -1406,23 +1409,8 @@ UINT32 S5K4E1GAGetInfo(MSDK_SCENARIO_ID_ENUM ScenarioId,
 	spin_unlock(&s5k4e1gamipiraw_drv_lock);
 	SENSORDB("[S5K4E1GAGetInfo]SensorImageMirror:%d\n", s5k4e1ga.imgMirror );
 
-	switch(s5k4e1ga.imgMirror)
-	{
-		case IMAGE_NORMAL: 
-			 pSensorInfo->SensorOutputDataFormat = SENSOR_OUTPUT_FORMAT_RAW_R ;
-			 break;
-		case IMAGE_H_MIRROR: 
-			 pSensorInfo->SensorOutputDataFormat = SENSOR_OUTPUT_FORMAT_RAW_Gr;
-			 break;
-	    case IMAGE_V_MIRROR: 
-			 pSensorInfo->SensorOutputDataFormat = SENSOR_OUTPUT_FORMAT_RAW_Gb;
-			 break;
-	    case IMAGE_HV_MIRROR: 
-			 pSensorInfo->SensorOutputDataFormat = SENSOR_OUTPUT_FORMAT_RAW_B ;
-			 break;
-		default:
-			break;
-	}
+	/* stock reports RAW_Gr for the HV_MIRROR (0x0101=0) readout it programs */
+	pSensorInfo->SensorOutputDataFormat = SENSOR_OUTPUT_FORMAT_RAW_Gr;
 	
     pSensorInfo->SensorVideoFrameRate=30;
     pSensorInfo->SensorStillCaptureFrameRate=15;
