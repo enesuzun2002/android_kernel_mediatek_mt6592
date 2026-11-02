@@ -182,6 +182,21 @@ static struct hp_ops hp_ops;
 static struct cpufreq_governor cpufreq_gov_hotplug;
 #endif
 
+/*
+ * hotplug may be built in without being the active governor (interactive is
+ * the default): cur_policy is then NULL, or stale and pointing at another
+ * governor's data. Callers from outside (thermal, mt_hotplug_mechanism) must
+ * not touch it in that case.
+ */
+static struct dbs_data *hp_get_dbs_data(void)
+{
+	struct cpufreq_policy *policy = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy;
+
+	if (!policy || policy->governor != &cpufreq_gov_hotplug)
+		return NULL;
+	return policy->governor_data;
+}
+
 static unsigned int default_powersave_bias;
 
 static void hotplug_powersave_bias_init_cpu(int cpu)
@@ -308,7 +323,7 @@ static void dbs_freq_increase(struct cpufreq_policy *p, unsigned int freq)
  */
 int hp_get_dynamic_cpu_hotplug_enable(void)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -323,7 +338,7 @@ EXPORT_SYMBOL(hp_get_dynamic_cpu_hotplug_enable);
 
 void hp_set_dynamic_cpu_hotplug_enable(int enable)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -347,7 +362,7 @@ EXPORT_SYMBOL(hp_set_dynamic_cpu_hotplug_enable);
 
 void hp_limited_cpu_num(int num)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -368,7 +383,7 @@ EXPORT_SYMBOL(hp_limited_cpu_num);
 void hp_based_cpu_num(int num)
 {
 	unsigned int online_cpus_count;
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -409,7 +424,7 @@ EXPORT_SYMBOL(hp_based_cpu_num);
 
 int hp_get_cpu_rush_boost_enable(void)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -424,7 +439,7 @@ EXPORT_SYMBOL(hp_get_cpu_rush_boost_enable);
 
 void hp_set_cpu_rush_boost_enable(int enable)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -455,7 +470,7 @@ static void sched_get_nr_running_avg(int *avg, int *iowait_avg)
 
 static void hp_reset_strategy_nolock(void)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -496,7 +511,7 @@ static void hp_reset_strategy(void)
 
 static void hp_work_handler(struct work_struct *work)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -996,7 +1011,7 @@ static void update_sampling_rate(struct dbs_data *dbs_data, unsigned int new_rat
 void hp_enable_timer(int enable)
 {
 #if 1
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data; /* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	static unsigned int sampling_rate_backup = 0;
 
 	if (!dbs_data || dbs_data->cdata->governor != GOV_HOTPLUG || (enable && !sampling_rate_backup))
@@ -1011,7 +1026,7 @@ void hp_enable_timer(int enable)
 		update_sampling_rate(dbs_data, 30000 * 100);
 	}
 #else
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data; /* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	int cpu = 0;
 	struct cpufreq_policy *policy;
 	struct hp_dbs_tuners *hp_tuners;
@@ -1617,7 +1632,7 @@ static void dbs_input_event(struct input_handle *handle, unsigned int type,
 	/* } */
 	/* pr_debug("$$$ in_interrupt(): %d, in_irq(): %d, type: %d, code: %d, value: %d $$$\n", in_interrupt(), in_irq(), type, code, value); */
 
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 	struct hp_dbs_tuners *hp_tuners;
 
 	if (!dbs_data)
@@ -1967,7 +1982,7 @@ struct cpufreq_governor cpufreq_gov_hotplug = {
 #ifdef CONFIG_MTK_SDIOAUTOK_SUPPORT
 void cpufreq_min_sampling_rate_change(unsigned int sample_rate)
 {
-	struct dbs_data *dbs_data = per_cpu(hp_cpu_dbs_info, 0).cdbs.cur_policy->governor_data;	/* TODO: FIXME, cpu = 0 */
+	struct dbs_data *dbs_data = hp_get_dbs_data();
 
 	if (!dbs_data)
 		return;

@@ -18,7 +18,7 @@
 #include <linux/reboot.h>
 #include <linux/xlog.h>
 #include <linux/mtk_ftrace.h>
-#if !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG) && !defined(CONFIG_CPU_FREQ_DEFAULT_GOV_BALANCE)
+#if !defined(CONFIG_CPU_FREQ_GOV_HOTPLUG) && !defined(CONFIG_CPU_FREQ_GOV_BALANCE)
 #include <mach/mt_hotplug_strategy.h>
 #endif
 
@@ -102,7 +102,7 @@ static void hib_unplug_cores(void)
 
 	hib_warn("unplug cores\n");
 
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG
+#ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
 	mutex_lock(&hp_onoff_mutex);
 #endif
 	for (i = (num_possible_cpus() - 1); i > 0 && num_online_cpus() > HIB_MULTIIO_CORES; i--) {
@@ -117,7 +117,7 @@ static void hib_unplug_cores(void)
 			}
 		}
 	}
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG
+#ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
 	mutex_unlock(&hp_onoff_mutex);
 #endif
 }
@@ -134,7 +134,7 @@ static void hib_hotplug_mode(int en)
 	if (en) {
 		if (1 == g_hp_disable) {
 			hib_warn("enable hotplug\n");
-#if defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_BALANCE)
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_GOV_BALANCE)
 			hp_set_dynamic_cpu_hotplug_enable(1);
 #else
 			hps_set_enabled(1);
@@ -144,7 +144,7 @@ static void hib_hotplug_mode(int en)
 	} else if (!en) {
 		if (0 == g_hp_disable) {
 			hib_warn("disable hotplug\n");
-#if defined(CONFIG_CPU_FREQ_DEFAULT_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_DEFAULT_GOV_BALANCE)
+#if defined(CONFIG_CPU_FREQ_GOV_HOTPLUG) || defined(CONFIG_CPU_FREQ_GOV_BALANCE)
 			hp_set_dynamic_cpu_hotplug_enable(0);
 #else
 			hps_set_enabled(0);
