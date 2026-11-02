@@ -264,7 +264,7 @@ void last_kmsg_store_to_emmc(void)
 #endif
 #endif
 
-#ifdef CONFIG_PSTORE
+#ifdef CONFIG_MTK_RAM_CONSOLE_PSTORE
 
 extern	void pstore_bconsole_write(struct console *con, const char *s, unsigned c);
 
@@ -472,7 +472,7 @@ static int ram_console_lastk_show(struct ram_console_buffer *buffer, struct seq_
 	seq_printf(m, "ram console header, hw_status: %u, fiq step %u.\n",
 		   wdt_status, LAST_RRR_BUF_VAL(buffer, fiq_step));
 
-#ifdef CONFIG_PSTORE_CONSOLE
+#ifdef CONFIG_MTK_RAM_CONSOLE_PSTORE
 	pr_err("ram_console: pstore show start\n");
 	pstore_console_show(PSTORE_TYPE_CONSOLE, m, v);
 	pr_err("ram_console: pstore show end\n");
@@ -518,7 +518,7 @@ static int __init ram_console_init(struct ram_console_buffer *buffer, size_t buf
 	buffer->off_console = buffer->off_linux + ALIGN(sizeof(struct last_reboot_reason), 64);
 	buffer->sz_console = buffer->sz_buffer - buffer->off_console;
 	memset((void*)buffer + buffer->off_linux, 0, buffer_size - buffer->off_linux);
-#ifndef CONFIG_PSTORE
+#ifndef CONFIG_MTK_RAM_CONSOLE_PSTORE
 	register_console(&ram_console);
 #endif
 	return 0;

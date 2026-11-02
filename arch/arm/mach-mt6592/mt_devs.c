@@ -18,6 +18,7 @@
 #include <linux/musbfsh.h>
 #include <linux/aee.h>
 #include <linux/mrdump.h>
+#include <linux/pstore_ram.h>
 #include "mach/memory.h"
 #include "mach/irqs.h"
 #include <mach/mt_reg_base.h>
@@ -2359,6 +2360,65 @@ void __weak eemcs_memory_reserve(void)
     printk(KERN_ERR"calling weak function %s\n", __FUNCTION__);
 }
 
+#if defined(CONFIG_PSTORE_RAM)
+/*
+ * ramoops: a block of DRAM that keeps its contents across a warm reset
+ * (watchdog, sysrq-b, reboot), so the previous boot's console log shows up
+ * in /sys/fs/pstore/console-ramoops. It sits in highmem (>= 0xa0000000) in
+ * the middle of the 2 GiB DRAM: no linear mapping exists there, so the
+ * write-combined vmap done by ram_core is the only mapping of those pages.
+ */
+#define MT_RAMOOPS_ADDR	((phys_addr_t)CONFIG_MT6592_RAMOOPS_ADDR)
+#define MT_RAMOOPS_SIZE	((phys_addr_t)CONFIG_MT6592_RAMOOPS_SIZE)
+
+static bool mt_ramoops_reserved;
+
+static struct ramoops_platform_data mt_ramoops_data = {
+	.mem_size	= CONFIG_MT6592_RAMOOPS_SIZE,
+	.mem_address	= CONFIG_MT6592_RAMOOPS_ADDR,
+	.mem_type	= 0,		/* write-combined, no unaligned faults */
+	.record_size	= 0x20000,	/* oops/panic dumps */
+	.console_size	= 0x40000,	/* previous boot's kernel log */
+	.ftrace_size	= 0,		/* function tracer off */
+	.pmsg_size	= 0x40000,	/* /dev/pmsg0 (logd) */
+	.dump_oops	= 1,
+};
+
+static struct platform_device mt_ramoops_device = {
+	.name	= "ramoops",
+	.id	= -1,
+	.dev	= {
+		.platform_data = &mt_ramoops_data,
+	},
+};
+
+static void mt_ramoops_reserve(void)
+{
+	if (!memblock_is_region_memory(MT_RAMOOPS_ADDR, MT_RAMOOPS_SIZE) ||
+	    memblock_is_region_reserved(MT_RAMOOPS_ADDR, MT_RAMOOPS_SIZE)) {
+		printk(KERN_ALERT "[memblock]mt_ramoops_reserve: 0x%08lx + 0x%lx is not free DRAM, ramoops disabled\n",
+		       (unsigned long)MT_RAMOOPS_ADDR, (unsigned long)MT_RAMOOPS_SIZE);
+		return;
+	}
+	memblock_reserve(MT_RAMOOPS_ADDR, MT_RAMOOPS_SIZE);
+	mt_ramoops_reserved = true;
+	printk(KERN_ALERT "[memblock]mt_ramoops_reserve: 0x%08lx - 0x%08lx (0x%08lx)\n",
+	       (unsigned long)MT_RAMOOPS_ADDR,
+	       (unsigned long)(MT_RAMOOPS_ADDR + MT_RAMOOPS_SIZE - 1),
+	       (unsigned long)MT_RAMOOPS_SIZE);
+}
+
+static int __init mt_ramoops_init(void)
+{
+	if (!mt_ramoops_reserved)
+		return 0;
+	return platform_device_register(&mt_ramoops_device);
+}
+arch_initcall(mt_ramoops_init);
+#else
+static inline void mt_ramoops_reserve(void) {}
+#endif
+
 extern unsigned int get_max_DRAM_size(void);
 extern void DFS_Reserved_Memory(int DFS_status);
 void mt_reserve(void)
@@ -2373,6 +2433,8 @@ void mt_reserve(void)
 	memblock_reserve(CONFIG_MTK_RAM_CONSOLE_DRAM_ADDR, CONFIG_MTK_RAM_CONSOLE_DRAM_SIZE);
 #endif
         mrdump_mini_reserve_memory();
+
+    mt_ramoops_reserve();
 
     DFS_Reserved_Memory(DFS_status);
     /* 

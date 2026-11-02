@@ -41,6 +41,27 @@ config MAX_DRAM_SIZE_SUPPORT
                 the memory size passed by the boot loader to the MAX_DRAM_SIZE_SUPPORT.
    		Notice that the maximum DRAM size is including the memory size
 	        reserved for the modem and the PMEM.
+config MT6592_RAMOOPS_ADDR
+	hex "Physical address of the ramoops (pstore) region"
+	default 0xB0000000
+	depends on ARCH_MT6592 && PSTORE_RAM
+	help
+	  Start of the DRAM block that is memblock-reserved and handed to
+	  ramoops, so the previous boot's console log survives a warm reset.
+	  It must lie in DRAM the bootloader hands to the kernel, away from
+	  the preloader/LK scratch area (below 0x84000000), the framebuffer
+	  and connsys carve-outs at the top of DRAM, and the DFS dummy-read
+	  page at the DRAM midpoint. If the range is not plain free DRAM at
+	  boot the reservation is skipped and ramoops is not registered.
+
+config MT6592_RAMOOPS_SIZE
+	hex "Size of the ramoops (pstore) region"
+	default 0x200000
+	depends on ARCH_MT6592 && PSTORE_RAM
+	help
+	  Must be a power of two. 2 MiB gives two 256 KiB console buffers,
+	  a 256 KiB pmsg buffer and ten 128 KiB oops/panic records.
+
 endmenu
 
 
