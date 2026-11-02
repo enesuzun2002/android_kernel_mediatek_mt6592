@@ -592,7 +592,10 @@ static int cm36283_get_als_value(struct cm36283_priv *obj, u16 als)
 	
 		if(!invalid)
 		{
-		#if defined(MTK_AAL_SUPPORT)
+		/* hulkbuster: interpolate between the (coarse, duplicated) lux table
+		 * steps as MTK's AAL builds do; snapping made room light flap between
+		 * 54 and 111 lux and auto-brightness see only a few levels. */
+		#if defined(MTK_AAL_SUPPORT) || 1
       	int level_high = obj->hw->als_level[idx];
     		int level_low = (idx > 0) ? obj->hw->als_level[idx-1] : 0;
         int level_diff = level_high - level_low;
