@@ -162,5 +162,78 @@ struct security_class_mapping secclass_map[] = {
 	{ "tun_socket",
 	  { COMMON_SOCK_PERMS, "attach_queue", NULL } },
 	{ "binder", { "impersonate", "call", "set_context_mgr", "transfer", NULL } },
+	{ "sctp_socket",
+	  { COMMON_SOCK_PERMS,
+	    "node_bind", NULL } },
+	{ "icmp_socket",
+	  { COMMON_SOCK_PERMS,
+	    "node_bind", NULL } },
+	{ "ax25_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "ipx_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "netrom_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "atmpvc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "x25_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "rose_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "decnet_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "atmsvc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "rds_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "irda_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "pppox_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "llc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "can_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "tipc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "bluetooth_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "iucv_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "rxrpc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "isdn_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "phonet_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "ieee802154_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "caif_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "alg_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "nfc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "vsock_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	/*
+	 * kcm/qipcrtr/smc are not implemented by this 3.10 kernel (no
+	 * PF_KCM, PF_QIPCRTR, PF_SMC); they are declared so the class
+	 * table matches Pie's policy and the later upstream map.
+	 */
+	{ "kcm_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "qipcrtr_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
+	{ "smc_socket",
+	  { COMMON_SOCK_PERMS, NULL } },
 	{ NULL }
   };
+
+#ifdef __KERNEL__ /* avoid this check when building host programs */
+#include <linux/socket.h>
+
+#if PF_MAX > 41
+#error New address family defined, please update secclass_map.
+#endif
+#endif
