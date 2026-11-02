@@ -54,6 +54,7 @@ obj-y				+= quota/
 
 obj-$(CONFIG_PROC_FS)		+= proc/
 obj-$(CONFIG_SYSFS)		+= sysfs/
+obj-$(CONFIG_DYNAMIC_FSYNC)	+= dyn_sync_cntrl.o
 obj-$(CONFIG_CONFIGFS_FS)	+= configfs/
 obj-y				+= devpts/
 

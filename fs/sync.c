@@ -15,6 +15,7 @@
 #include <linux/pagemap.h>
 #include <linux/quotaops.h>
 #include <linux/backing-dev.h>
+#include <linux/dyn_sync_cntrl.h>
 #include "internal.h"
 
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
@@ -199,8 +200,19 @@ EXPORT_SYMBOL(vfs_fsync);
 
 static int do_fsync(unsigned int fd, int datasync)
 {
-	struct fd f = fdget(fd);
+	struct fd f;
 	int ret = -EBADF;
+
+	/* dynamic fsync: screen on, data is flushed later; keep EBADF checks */
+	if (dyn_fsync_skip()) {
+		f = fdget(fd);
+		if (!f.file)
+			return -EBADF;
+		fdput(f);
+		return 0;
+	}
+
+	f = fdget(fd);
 
 	if (f.file) {
 		ret = vfs_fsync(f.file, datasync);

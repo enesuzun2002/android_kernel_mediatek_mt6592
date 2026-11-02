@@ -61,6 +61,17 @@ config FILE_LOCKING
           for filesystems like NFS and for the flock() system
           call. Disabling this option saves about 11k.
 
+config DYNAMIC_FSYNC
+	bool "dynamic fsync"
+	depends on HAS_EARLYSUSPEND && SYSFS
+	default n
+	help
+	  Make fsync()/fdatasync() return immediately while the screen is on
+	  and flush all dirty data when the screen turns off, on reboot or
+	  poweroff and on panic. Disabled at boot; enable at runtime with
+	  /sys/kernel/dyn_fsync/Dyn_fsync_active. Data written with fsync
+	  while the screen is on can be lost on a hard crash or power loss.
+
 source "fs/notify/Kconfig"
 
 source "fs/quota/Kconfig"
