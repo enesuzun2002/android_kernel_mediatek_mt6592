@@ -14,6 +14,7 @@
 #include <linux/suspend.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
 #include <trace/events/power.h>
 
 #include "power.h"
@@ -952,3 +953,84 @@ static int __init wakeup_sources_debugfs_init(void)
 }
 
 postcore_initcall(wakeup_sources_debugfs_init);
+
+/*
+ * /proc/wakelocks - wakeup source statistics in the classic Android
+ * wakelock format, which is what KernelWakelockReader tries first (before
+ * falling back to /d/wakeup_sources, which requires debugfs to be mounted).
+ *
+ * Columns: name (quoted), count, expire_count, wake_count, active_since,
+ * total_time, sleep_time, max_time, last_change; times are in nanoseconds.
+ */
+static int wakelocks_proc_show(struct seq_file *m, void *unused)
+{
+	struct wakeup_source *ws;
+
+	seq_puts(m, "name\tcount\texpire_count\twake_count\tactive_since\t"
+		"total_time\tsleep_time\tmax_time\tlast_change\n");
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ws, &wakeup_sources, entry) {
+		unsigned long flags;
+		ktime_t total_time, max_time, active_time, prevent_sleep_time;
+		unsigned long active_count, expire_count, wakeup_count;
+		ktime_t last_time;
+
+		spin_lock_irqsave(&ws->lock, flags);
+
+		total_time = ws->total_time;
+		max_time = ws->max_time;
+		prevent_sleep_time = ws->prevent_sleep_time;
+		active_count = ws->active_count;
+		expire_count = ws->expire_count;
+		wakeup_count = ws->wakeup_count;
+		last_time = ws->last_time;
+		if (ws->active) {
+			ktime_t now = ktime_get();
+
+			active_time = ktime_sub(now, ws->last_time);
+			total_time = ktime_add(total_time, active_time);
+			if (active_time.tv64 > max_time.tv64)
+				max_time = active_time;
+
+			if (ws->autosleep_enabled)
+				prevent_sleep_time = ktime_add(prevent_sleep_time,
+					ktime_sub(now, ws->start_prevent_time));
+		} else {
+			active_time = ktime_set(0, 0);
+		}
+
+		seq_printf(m, "\"%s\"\t%lu\t%lu\t%lu\t%lld\t%lld\t%lld\t%lld\t%lld\n",
+			   ws->name ? ws->name : "(null)", active_count,
+			   expire_count, wakeup_count,
+			   ktime_to_ns(active_time), ktime_to_ns(total_time),
+			   ktime_to_ns(prevent_sleep_time),
+			   ktime_to_ns(max_time), ktime_to_ns(last_time));
+
+		spin_unlock_irqrestore(&ws->lock, flags);
+	}
+	rcu_read_unlock();
+
+	return 0;
+}
+
+static int wakelocks_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, wakelocks_proc_show, NULL);
+}
+
+static const struct file_operations wakelocks_proc_fops = {
+	.owner = THIS_MODULE,
+	.open = wakelocks_proc_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+static int __init wakelocks_proc_init(void)
+{
+	proc_create("wakelocks", S_IRUGO, NULL, &wakelocks_proc_fops);
+	return 0;
+}
+
+postcore_initcall(wakelocks_proc_init);
