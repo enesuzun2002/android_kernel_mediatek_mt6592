@@ -479,10 +479,10 @@ void GC2235SetFlipMirror(kal_int32 imgMirror)
 			GC2235_write_cmos_sensor(0x92,0x03);
 			GC2235_write_cmos_sensor(0x94,0x0b);
             break;
-        case IMAGE_V_MIRROR://IMAGE_V_MIRROR:
-            GC2235_write_cmos_sensor(0x17,0x16);
+        case IMAGE_V_MIRROR://IMAGE_V_MIRROR: stock values (mirror only, 0x94=0x19)
+            GC2235_write_cmos_sensor(0x17,0x15);
 			GC2235_write_cmos_sensor(0x92,0x02);
-			GC2235_write_cmos_sensor(0x94,0x0b);
+			GC2235_write_cmos_sensor(0x94,0x19);
             break;
         case IMAGE_HV_MIRROR://IMAGE_HV_MIRROR:
 			GC2235_write_cmos_sensor(0x17,0x17);
@@ -632,10 +632,8 @@ UINT32 GC2235GetInfo(MSDK_SCENARIO_ID_ENUM ScenarioId,
 	spin_lock(&gc2235mipiraw_drv_lock);
 	gc2235.imgMirror = pSensorConfigData->SensorImageMirror ;
 	spin_unlock(&gc2235mipiraw_drv_lock);
-    if(GC2235_ORIENTATION == IMAGE_V_MIRROR)
-   		pSensorInfo->SensorOutputDataFormat= SENSOR_OUTPUT_FORMAT_RAW_B;
-	else
-		pSensorInfo->SensorOutputDataFormat= SENSOR_OUTPUT_FORMAT_RAW_Gb;
+	/* stock GetInfo always reports RAW_R */
+	pSensorInfo->SensorOutputDataFormat= SENSOR_OUTPUT_FORMAT_RAW_R;
     pSensorInfo->SensorClockPolarity =SENSOR_CLOCK_POLARITY_LOW;
     pSensorInfo->SensorClockFallingPolarity=SENSOR_CLOCK_POLARITY_LOW;
     pSensorInfo->SensorHsyncPolarity = SENSOR_CLOCK_POLARITY_LOW;
