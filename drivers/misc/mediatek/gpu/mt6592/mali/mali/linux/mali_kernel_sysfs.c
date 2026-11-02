@@ -30,6 +30,7 @@
 #include <linux/module.h>
 #include <linux/mali/mali_utgard.h>
 #include <linux/proc_fs.h>
+#include <linux/uidgid.h>
 #include "mali_kernel_sysfs.h"
 #if defined(CONFIG_MALI400_INTERNAL_PROFILING)
 #include <linux/slab.h>
@@ -102,6 +103,25 @@ static const struct file_operations proc_memoryusage_operations = {
     .release = single_release,
 };
 
+static int proc_pid_memory_show(struct seq_file *m, void *v)
+{
+    mali_session_pid_memory(m);
+
+    return 0;
+}
+
+static int proc_pid_memory_open(struct inode *inode, struct file *file)
+{
+    return single_open(file, proc_pid_memory_show, NULL);
+}
+
+static const struct file_operations proc_pid_memory_operations = {
+    .open    = proc_pid_memory_open,
+    .read    = seq_read,
+    .llseek  = seq_lseek,
+    .release = single_release,
+};
+
 static int proc_utilization_show(struct seq_file *m, void *v)
 {
     unsigned long gpu, gp, pp;
@@ -129,6 +149,8 @@ static const struct file_operations proc_utilization_operations = {
 
 static void proc_mali_register(void)
 {
+    struct proc_dir_entry *pid_entry;
+
     mali_pentry = proc_mkdir("mali", NULL);
     MALI_DEBUG_PRINT(1, ("[%s] pentry=%p\n", __FUNCTION__, mali_pentry));
 
@@ -137,6 +159,12 @@ static void proc_mali_register(void)
      
     proc_create("memory_usage", 0, mali_pentry, &proc_memoryusage_operations);
     proc_create("utilization", 0, mali_pentry, &proc_utilization_operations);
+
+    /* per-process usage for the memtrack HAL: root and system only */
+    pid_entry = proc_create("pid_memory", S_IRUSR | S_IRGRP, mali_pentry,
+                            &proc_pid_memory_operations);
+    if (pid_entry)
+        proc_set_user(pid_entry, GLOBAL_ROOT_UID, make_kgid(&init_user_ns, 1000));
 }
 
 
@@ -147,6 +175,7 @@ static void proc_mali_unregister(void)
 
     remove_proc_entry("memory_usage", mali_pentry);
     remove_proc_entry("utilization", mali_pentry);
+    remove_proc_entry("pid_memory", mali_pentry);
     remove_proc_entry("mali", NULL);
     mali_pentry = NULL;
 }

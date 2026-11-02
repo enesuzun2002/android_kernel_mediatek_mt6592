@@ -102,3 +102,24 @@ void mali_session_memory_tracking(struct seq_file  *print_ctx)
 	_mali_osk_ctxprintf(print_ctx, "Mali mem usage: %u\nMali mem limit: %u\n", mali_mem_usage, total_mali_mem_size);
 }
 
+
+/*
+ * One line per session: "pid mali_mem dma_buf_mem ump_mem external_mem" in
+ * bytes. A process can own several sessions, the reader sums them by pid.
+ */
+void mali_session_pid_memory(struct seq_file *print_ctx)
+{
+	struct mali_session_data *session, *tmp;
+
+	MALI_DEBUG_ASSERT_POINTER(print_ctx);
+	mali_session_lock();
+	MALI_SESSION_FOREACH(session, tmp, link) {
+		_mali_osk_ctxprintf(print_ctx, "%u %zu %zu %zu %zu\n",
+				    session->pid,
+				    session->mali_mem_array[MALI_MEM_OS] + session->mali_mem_array[MALI_MEM_BLOCK],
+				    session->mali_mem_array[MALI_MEM_DMA_BUF],
+				    session->mali_mem_array[MALI_MEM_UMP],
+				    session->mali_mem_array[MALI_MEM_EXTERNAL]);
+	}
+	mali_session_unlock();
+}

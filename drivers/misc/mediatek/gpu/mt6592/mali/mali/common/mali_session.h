@@ -98,5 +98,6 @@ u32 mali_session_max_window_num(void);
 #endif
 
 void mali_session_memory_tracking(struct seq_file *print_ctx);
+void mali_session_pid_memory(struct seq_file *print_ctx);
 
 #endif /* __MALI_SESSION_H__ */
