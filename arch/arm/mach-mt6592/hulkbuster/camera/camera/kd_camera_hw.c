@@ -38,17 +38,116 @@
 #define CAMERA_POWER_ON_PIN GPIO115
 kal_bool searchMainSensor = KAL_TRUE;
 
-int kdCISModulePowerOn(CAMERA_DUAL_CAMERA_SENSOR_ENUM SensorIdx, char *currSensorName, BOOL On, char* mode_name)
-{
-u32 pinSetIdx = 0;//default main sensor
-u32 pinSetIdxTmp = 0;
-
+/*
+ * General Mobile E-Tab5 (hulkbuster) stock camera power sequence, recovered by
+ * disassembling the stock 3.10.72 kdCISModulePowerOn(): the stock kernel only
+ * knows two sensors and rejects anything else ("Not Match ! Bypass"):
+ *   Main (SensorIdx 1): s5k4e1gamipiraw  (S5K4E1GA, ID 0x4E10)  RST GPIO80 PDN GPIO83
+ *   Sub  (SensorIdx 2): gc2235_mipi_raw  (GC2235,    ID 0x2235)  RST GPIO82 PDN GPIO81 (active low)
+ * Stock additionally toggles the SENINF TG1 MCLK enable (0xF5008300 bit 29)
+ * around the rails; that is not reproduced here (see report).
+ */
 #define IDX_PS_CMRST 0
 #define IDX_PS_CMPDN 4
 
 #define IDX_PS_MODE 1
 #define IDX_PS_ON   2
 #define IDX_PS_OFF  3
+
+#define KD_STOCK_MAIN_SENSOR_NAME SENSOR_DRVNAME_S5K4E1GA_MIPI_RAW
+#define KD_STOCK_SUB_SENSOR_NAME  SENSOR_DRVNAME_GC2235_MIPI_RAW
+
+static void kdCamPinSet(u32 pin, u32 mode, u32 val)
+{
+    if (GPIO_CAMERA_INVALID == pin)
+        return;
+    if(mt_set_gpio_mode(pin, mode)){PK_ERR("[CAMERA SENSOR] set gpio mode failed!! \n");}
+    if(mt_set_gpio_dir(pin, GPIO_DIR_OUT)){PK_ERR("[CAMERA SENSOR] set gpio dir failed!! \n");}
+    if(mt_set_gpio_out(pin, val)){PK_ERR("[CAMERA SENSOR] set gpio failed!! \n");}
+}
+
+static int kdCamRailOn(int rail, int mv, char *mode_name, int delay_ms)
+{
+    if (TRUE != hwPowerOn(rail, mv, mode_name)) {
+        PK_ERR("[CAMERA SENSOR] Fail to enable power rail %d\n", rail);
+        return -EIO;
+    }
+    mdelay(delay_ms);
+    return 0;
+}
+
+static void kdCamRailOff(int rail, char *mode_name, int delay_ms)
+{
+    if (TRUE != hwPowerDown(rail, mode_name)) {
+        PK_ERR("[CAMERA SENSOR] Fail to OFF power rail %d\n", rail);
+    }
+    mdelay(delay_ms);
+}
+
+static int kdCISModulePowerStock(u32 idx, BOOL On, char *mode_name, u32 pinSet[2][8])
+{
+    u32 oth = 1 - idx;
+
+    if (On) {
+        /* both sensors: RST low, PDN in power-down state */
+        kdCamPinSet(pinSet[idx][IDX_PS_CMRST], pinSet[idx][IDX_PS_CMRST+IDX_PS_MODE], pinSet[idx][IDX_PS_CMRST+IDX_PS_OFF]);
+        kdCamPinSet(pinSet[idx][IDX_PS_CMPDN], pinSet[idx][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[idx][IDX_PS_CMPDN+IDX_PS_OFF]);
+        kdCamPinSet(pinSet[oth][IDX_PS_CMRST], pinSet[oth][IDX_PS_CMRST+IDX_PS_MODE], pinSet[oth][IDX_PS_CMRST+IDX_PS_OFF]);
+        kdCamPinSet(pinSet[oth][IDX_PS_CMPDN], pinSet[oth][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[oth][IDX_PS_CMPDN+IDX_PS_OFF]);
+
+        if (0 == idx) {
+            /* main: VCAMD 1.8, VCAMA 2.8, VCAM_IO 1.8, VCAM_AF 2.8, 5ms apart */
+            if (kdCamRailOn(CAMERA_POWER_VCAM_D,  VOL_1800, mode_name, 5)) goto fail;
+            if (kdCamRailOn(CAMERA_POWER_VCAM_A,  VOL_2800, mode_name, 5)) goto fail;
+            if (kdCamRailOn(CAMERA_POWER_VCAM_D2, VOL_1800, mode_name, 5)) goto fail;
+            if (kdCamRailOn(CAMERA_POWER_VCAM_A2, VOL_2800, mode_name, 5)) goto fail;
+        } else {
+            /* sub: VCAMD 1.8 (5ms), VCAM_IO 1.8 (1ms), VCAMA 2.8 (5ms) */
+            if (kdCamRailOn(CAMERA_POWER_VCAM_D,  VOL_1800, mode_name, 5)) goto fail;
+            if (kdCamRailOn(CAMERA_POWER_VCAM_D2, VOL_1800, mode_name, 1)) goto fail;
+            if (kdCamRailOn(CAMERA_POWER_VCAM_A,  VOL_2800, mode_name, 5)) goto fail;
+        }
+
+        /* other sensor stays in reset/power-down; selected sensor: PDN on, 5ms, RST high, 5ms */
+        kdCamPinSet(pinSet[oth][IDX_PS_CMRST], pinSet[oth][IDX_PS_CMRST+IDX_PS_MODE], pinSet[oth][IDX_PS_CMRST+IDX_PS_OFF]);
+        kdCamPinSet(pinSet[oth][IDX_PS_CMPDN], pinSet[oth][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[oth][IDX_PS_CMPDN+IDX_PS_OFF]);
+        kdCamPinSet(pinSet[idx][IDX_PS_CMPDN], pinSet[idx][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[idx][IDX_PS_CMPDN+IDX_PS_ON]);
+        mdelay(5);
+        kdCamPinSet(pinSet[idx][IDX_PS_CMRST], pinSet[idx][IDX_PS_CMRST+IDX_PS_MODE], pinSet[idx][IDX_PS_CMRST+IDX_PS_ON]);
+        mdelay(5);
+        return 0;
+    }
+
+    /* power off: RST low, PDN off, 5ms, then rails in stock order */
+    kdCamPinSet(pinSet[idx][IDX_PS_CMRST], pinSet[idx][IDX_PS_CMRST+IDX_PS_MODE], pinSet[idx][IDX_PS_CMRST+IDX_PS_OFF]);
+    kdCamPinSet(pinSet[idx][IDX_PS_CMPDN], pinSet[idx][IDX_PS_CMPDN+IDX_PS_MODE], pinSet[idx][IDX_PS_CMPDN+IDX_PS_OFF]);
+    mdelay(5);
+    if (0 == idx) {
+        kdCamRailOff(CAMERA_POWER_VCAM_A,  mode_name, 5);
+        kdCamRailOff(CAMERA_POWER_VCAM_A2, mode_name, 5);
+        kdCamRailOff(CAMERA_POWER_VCAM_D,  mode_name, 5);
+        kdCamRailOff(CAMERA_POWER_VCAM_D2, mode_name, 5);
+    } else {
+        kdCamRailOff(CAMERA_POWER_VCAM_A,  mode_name, 5);
+        kdCamRailOff(CAMERA_POWER_VCAM_D2, mode_name, 5);
+        kdCamRailOff(CAMERA_POWER_VCAM_D,  mode_name, 5);
+    }
+    /* stock power saving: leave this sensor's own pins low */
+    if (pinSet[idx][IDX_PS_CMPDN+IDX_PS_OFF] != GPIO_OUT_ZERO)
+        mt_set_gpio_out(pinSet[idx][IDX_PS_CMPDN], GPIO_OUT_ZERO);
+    if (pinSet[idx][IDX_PS_CMRST+IDX_PS_OFF] != GPIO_OUT_ZERO)
+        mt_set_gpio_out(pinSet[idx][IDX_PS_CMRST], GPIO_OUT_ZERO);
+    return 0;
+
+fail:
+    return -EIO;
+}
+
+int kdCISModulePowerOn(CAMERA_DUAL_CAMERA_SENSOR_ENUM SensorIdx, char *currSensorName, BOOL On, char* mode_name)
+{
+u32 pinSetIdx = 0;//default main sensor
+u32 pinSetIdxTmp = 0;
+
 
 
 u32 pinSet[2][8] = {
@@ -84,6 +183,14 @@ u32 pinSet[2][8] = {
 		searchMainSensor = KAL_FALSE;
     }
    
+    /* E-Tab5 stock sensors: main s5k4e1gamipiraw, sub gc2235_mipi_raw */
+    if (currSensorName &&
+        ((0 == pinSetIdx && 0 == strcmp(KD_STOCK_MAIN_SENSOR_NAME, currSensorName)) ||
+         (1 == pinSetIdx && 0 == strcmp(KD_STOCK_SUB_SENSOR_NAME, currSensorName)))) {
+        PK_DBG("kdCISModulePowerOn %s %s (stock sequence)\n", On ? "on" : "off", currSensorName);
+        return kdCISModulePowerStock(pinSetIdx, On, mode_name, pinSet);
+    }
+
     //power ON
     if (On) {
 		PK_DBG("kdCISModulePowerOn -on:currSensorName=%s\n",currSensorName);
