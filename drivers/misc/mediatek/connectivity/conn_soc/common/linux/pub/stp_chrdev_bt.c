@@ -12,6 +12,7 @@
 * If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <linux/uio.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/types.h>
@@ -456,11 +457,65 @@ static int BT_close(struct inode *inode, struct file *file)
 	return 0;
 }
 
+
+/*
+ * Pie's bluetooth@1.0 HAL sends every HCI packet with writev([type][payload]).
+ * Without aio_write, the 3.10 VFS turns that into one ->write() per iovec, and
+ * BT_write() sends each call as a separate STP packet, so the controller sees
+ * a lone H4 type byte and then a packet without one, and never answers (the
+ * stack's HCI_RESET times out). Gather the iovecs into one packet instead.
+ */
+static ssize_t BT_aio_write(struct kiocb *iocb, const struct iovec *iov,
+			    unsigned long nr_segs, loff_t pos)
+{
+	INT32 retval = 0;
+	INT32 written = 0;
+	size_t total = 0, off = 0;
+	unsigned long i;
+
+	for (i = 0; i < nr_segs; i++)
+		total += iov[i].iov_len;
+
+	down(&wr_mtx);
+
+	if (retflag) {
+		retval = (retflag == 1) ? -88 : -99;
+		goto OUT;
+	}
+
+	if (total == 0 || total >= BT_BUFFER_SIZE) {
+		BT_ERR_FUNC("aio_write: packet length %zu not allowed\n", total);
+		retval = -EINVAL;
+		goto OUT;
+	}
+
+	for (i = 0; i < nr_segs; i++) {
+		if (copy_from_user(&o_buf[off], iov[i].iov_base, iov[i].iov_len)) {
+			retval = -EFAULT;
+			goto OUT;
+		}
+		off += iov[i].iov_len;
+	}
+
+	written = mtk_wcn_stp_send_data(&o_buf[0], total, BT_TASK_INDX);
+	if (0 == written) {
+		retval = -ENOSPC;
+		BT_ERR_FUNC("aio_write: target packet length:%zu, no window space\n", total);
+	} else {
+		retval = written;
+	}
+
+OUT:
+	up(&wr_mtx);
+	return retval;
+}
+
 const struct file_operations BT_fops = {
 	.open = BT_open,
 	.release = BT_close,
 	.read = BT_read,
 	.write = BT_write,
+	.aio_write = BT_aio_write,
 /* .ioctl = BT_ioctl, */
 	.unlocked_ioctl = BT_unlocked_ioctl,
 	.poll = BT_poll
