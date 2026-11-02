@@ -1277,6 +1277,16 @@ void mt_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
                /* ATAG_NONE actual size */
                (uint32_t)(none_tag) - (uint32_t)(tag_next(cmdline_tag)) + 8);
     }
+
+    /*
+     * LK reports power-off charging only through ATAG_BOOT. Android's init
+     * enters charger mode (the "charger" trigger instead of late-init) only
+     * for androidboot.mode=charger, so pass it on; otherwise a plugged-in
+     * powered-off tablet starts a full boot in the kernel's charging mode.
+     */
+    if (g_boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
+        g_boot_mode == LOW_POWER_OFF_CHARGING_BOOT)
+        strlcat(*cmdline, " androidboot.mode=charger", COMMAND_LINE_SIZE);
 }
 
 struct platform_device auxadc_device = {
