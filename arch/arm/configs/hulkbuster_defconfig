@@ -2809,8 +2809,24 @@ CONFIG_FSNOTIFY=y
 CONFIG_DNOTIFY=y
 CONFIG_INOTIFY_USER=y
 # CONFIG_FANOTIFY is not set
-# CONFIG_QUOTA is not set
-# CONFIG_QUOTACTL is not set
+
+# Disk quota, for Pie's installd/StorageStatsService. With the ext4 'quota'
+# feature on /data (tune2fs -Oquota -Qusrquota,grpquota, run by fs_mgr when
+# the /data fstab entry carries the 'quota' flag) ext4 tracks per-uid/gid usage
+# in hidden quota inodes, and installd reads it with quotactl(Q_GETQUOTA) on
+# the /dev/block/ device instead of walking every app's directories. 3.10 ext4
+# already implements the feature (hidden inodes, EXT4_FEATURE_RO_COMPAT_QUOTA,
+# ext4_qctl_sysfile_operations); only the VFS quota core was disabled. Pie's
+# installd uses USRQUOTA/GRPQUOTA only, so no project quota is needed.
+# Without the fstab flag this changes nothing at run time.
+CONFIG_QUOTA=y
+# CONFIG_QUOTA_NETLINK_INTERFACE is not set
+# CONFIG_PRINT_QUOTA_WARNING is not set
+# CONFIG_QUOTA_DEBUG is not set
+# CONFIG_QFMT_V1 is not set
+CONFIG_QFMT_V2=y
+CONFIG_QUOTACTL=y
+CONFIG_QUOTA_TREE=y
 # CONFIG_AUTOFS4_FS is not set
 CONFIG_FUSE_FS=y
 # CONFIG_CUSE is not set
