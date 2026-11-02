@@ -2282,6 +2282,27 @@ unsigned int mtkfb_fm_auto_test()
 	return result;
 }
 
+/*
+ * FBIOBLANK. Android drives the panel through early suspend, so normal boots
+ * keep the old -EINVAL. The power-off charging UI (healthd charger) has
+ * nothing else to switch the screen with, so there blank/unblank turns the
+ * LCD backlight off/on. Only the backlight: running the full early-suspend /
+ * late-resume path from this ioctl (minui and the charger blank and unblank
+ * several times in a row at start) hung the display in charging mode.
+ */
+static int mtkfb_blank(int blank_mode, struct fb_info *info)
+{
+    if (get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT &&
+        get_boot_mode() != LOW_POWER_OFF_CHARGING_BOOT)
+        return -EINVAL;
+
+#if defined(CONFIG_MTK_LEDS)
+    mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD,
+                               blank_mode == FB_BLANK_UNBLANK ? LED_HALF : LED_OFF);
+#endif
+    return 0;
+}
+
 /* Callback table for the frame buffer framework. Some of these pointers
  * will be changed according to the current setting of fb_info->accel_flags.
  */
@@ -2298,6 +2319,7 @@ static struct fb_ops mtkfb_ops = {
     .fb_check_var   = mtkfb_check_var,
     .fb_set_par     = mtkfb_set_par,
     .fb_ioctl       = mtkfb_ioctl,
+    .fb_blank       = mtkfb_blank,
 };
 
 /*
