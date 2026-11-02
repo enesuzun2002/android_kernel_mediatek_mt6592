@@ -405,9 +405,11 @@ static void migrate_to_reboot_cpu(void)
  *	This is not safe to call in interrupt context.
  */
 extern void klog_dump_to_emmc(const char *reason);
+extern void klog_dump_panic_hook(const char *cmd);
 
 void kernel_restart(char *cmd)
 {
+	klog_dump_panic_hook(cmd);
 	klog_dump_to_emmc(cmd);
 	kernel_restart_prepare(cmd);
 	migrate_to_reboot_cpu();
@@ -453,6 +455,7 @@ EXPORT_SYMBOL_GPL(kernel_halt);
  */
 void kernel_power_off(void)
 {
+	klog_dump_panic_hook("power_off");
 	klog_dump_to_emmc("power_off");
 	kernel_shutdown_prepare(SYSTEM_POWER_OFF);
 	if (pm_power_off_prepare)

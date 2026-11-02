@@ -820,6 +820,8 @@ static int run_init_process(const char *init_filename)
 
 static noinline void __init kernel_init_freeable(void);
 
+extern void klog_dump_before_init(void);
+
 static int __ref kernel_init(void *unused)
 {
 	kernel_init_freeable();
@@ -833,7 +835,9 @@ static int __ref kernel_init(void *unused)
 	flush_delayed_fput();
 
 	log_boot("Kernel_init_done");
-	
+
+	klog_dump_before_init();
+
 	if (ramdisk_execute_command) {
 		if (!run_init_process(ramdisk_execute_command))
 			return 0;

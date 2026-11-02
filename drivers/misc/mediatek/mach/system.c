@@ -4,6 +4,7 @@
 #include <mach/mtk_rtc.h>
 #include <mach/wd_api.h>
 extern void wdt_arch_reset(char);
+extern void klog_dump_arch_reset_hook(const char *cmd);
 
 
 
@@ -16,6 +17,7 @@ void arch_reset(char mode, const char *cmd)
     return ;
 #else
 
+	klog_dump_arch_reset_hook(cmd);
 	res = get_wd_api(&wd_api);
 	pr_notice("arch_reset: cmd = %s\n", cmd ? : "NULL");
 
