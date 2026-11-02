@@ -76,12 +76,14 @@ const char *selinux_policycap_names[__POLICYDB_CAPABILITY_MAX] = {
 	"open_perms",
 	"extended_socket_class",
 	"always_check_network",
-	"cgroup_seclabel"
+	"cgroup_seclabel",
+	"nnp_nosuid_transition"
 };
 
 int selinux_policycap_netpeer;
 int selinux_policycap_openperm;
 int selinux_policycap_extsockclass;
+int selinux_policycap_nnp_nosuid_transition;
 
 static DEFINE_RWLOCK(policy_rwlock);
 
@@ -2003,6 +2005,9 @@ static void security_load_policycaps(void)
 						  POLICYDB_CAPABILITY_OPENPERM);
 	selinux_policycap_extsockclass = ebitmap_get_bit(&policydb.policycaps,
 						  POLICYDB_CAPABILITY_EXTSOCKCLASS);
+	selinux_policycap_nnp_nosuid_transition =
+		ebitmap_get_bit(&policydb.policycaps,
+				POLICYDB_CAPABILITY_NNP_NOSUID_TRANSITION);
 
 	for (i = 0; i < ARRAY_SIZE(selinux_policycap_names); i++)
 		pr_info("SELinux:  policy capability %s=%d\n",
