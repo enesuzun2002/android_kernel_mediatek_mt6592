@@ -120,6 +120,21 @@ static ssize_t mt_printk_ctrl_write(struct file *filp, const char *ubuf, ssize_t
 	return cnt;
 }
 
+/*
+ * The stock LK passes printk.disable_uart=0, which makes every console-level
+ * printk go out of the polled UART until bootprof turns it off at the end of
+ * boot. Nothing is attached to that UART on a retail unit and the writes
+ * stall the CPU that holds the console, so turn it off as soon as the command
+ * line has been parsed. Write 1 to /proc/mtprintk to get it back.
+ */
+static int __init mt_printk_quiet_uart(void)
+{
+	if (!mt_need_uart_console)
+		printk_disable_uart = 1;
+	return 0;
+}
+early_initcall(mt_printk_quiet_uart);
+
 static int __init init_mt_printk_ctrl(void)
 {
 	struct proc_dir_entry *pe;
