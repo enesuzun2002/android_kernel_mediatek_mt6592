@@ -3273,6 +3273,19 @@ static int selinux_mmap_addr(unsigned long addr)
 static int selinux_mmap_file(struct file *file, unsigned long reqprot,
 			     unsigned long prot, unsigned long flags)
 {
+	struct common_audit_data ad;
+	int rc;
+
+	if (file) {
+		ad.type = LSM_AUDIT_DATA_PATH;
+		ad.u.path = file->f_path;
+
+		rc = inode_has_perm(current_cred(), file_inode(file),
+				    FILE__MAP, &ad, 0);
+		if (rc)
+			return rc;
+	}
+
 	if (selinux_checkreqprot)
 		prot = reqprot;
 
