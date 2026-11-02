@@ -45,6 +45,16 @@ config CPU_FREQ_STAT_DETAILS
 
 	  If in doubt, say N.
 
+config CPU_FREQ_TIMES
+	bool "Per-UID CPU frequency time-in-state statistics"
+	help
+	  Collects per-UID CPU time-in-state, concurrent active time and
+	  concurrent policy time for Android's BatteryStats and exports them
+	  as /proc/uid_time_in_state, /proc/uid_concurrent_active_time,
+	  /proc/uid_concurrent_policy_time and /proc/uid_cpupower/.
+
+	  If in doubt, say N.
+
 choice
 	prompt "Default CPUFreq governor"
 	default CPU_FREQ_DEFAULT_GOV_USERSPACE if ARM_SA1100_CPUFREQ || ARM_SA1110_CPUFREQ
