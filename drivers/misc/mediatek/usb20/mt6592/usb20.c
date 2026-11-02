@@ -26,6 +26,7 @@
 #include <mach/eint.h>
 #include <linux/musb/musb_core.h>
 #include <linux/musb/mtk_musb.h>
+#include <linux/usb/class-dual-role.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
 #include <linux/musb/musbhsdma.h>
@@ -264,6 +265,115 @@ static void mt_usb_disable(struct musb *musb)
 }
 
 /* ================================ */
+/* dual_role_usb class (Android USB HAL) */
+/* ================================ */
+/*
+ * Expose the single micro-USB port through /sys/class/dual_role_usb so the
+ * stock android.hardware.usb@1.0 service can report it. The port has no PD
+ * controller, so roles are derived from what the driver already knows and
+ * userspace cannot swap them:
+ *   - ID pin grounded (musb->is_host): dfp / source / host
+ *   - B-device attached (mt_usb_connect() ran): ufp / sink / device
+ *   - otherwise: none / none / none
+ */
+static bool mt_usb_dr_attached;
+static struct dual_role_phy_instance *mt_usb_dual_role;
+
+static enum dual_role_property mt_usb_dr_props[] = {
+	DUAL_ROLE_PROP_MODE,
+	DUAL_ROLE_PROP_PR,
+	DUAL_ROLE_PROP_DR,
+};
+
+static int mt_usb_dr_get_property(struct dual_role_phy_instance *dual_role,
+				  enum dual_role_property prop,
+				  unsigned int *val)
+{
+	struct musb *musb = dual_role_get_drvdata(dual_role);
+	bool host = false, device = false;
+
+	if (IS_ERR_OR_NULL(musb))
+		return -ENODEV;
+
+#ifdef CONFIG_USB_MTK_OTG
+	host = musb->is_host;
+#endif
+	device = !host && mt_usb_dr_attached;
+
+	switch (prop) {
+	case DUAL_ROLE_PROP_MODE:
+		*val = host ? DUAL_ROLE_PROP_MODE_DFP :
+		       device ? DUAL_ROLE_PROP_MODE_UFP :
+		       DUAL_ROLE_PROP_MODE_NONE;
+		break;
+	case DUAL_ROLE_PROP_PR:
+		*val = host ? DUAL_ROLE_PROP_PR_SRC :
+		       device ? DUAL_ROLE_PROP_PR_SNK :
+		       DUAL_ROLE_PROP_PR_NONE;
+		break;
+	case DUAL_ROLE_PROP_DR:
+		*val = host ? DUAL_ROLE_PROP_DR_HOST :
+		       device ? DUAL_ROLE_PROP_DR_DEVICE :
+		       DUAL_ROLE_PROP_DR_NONE;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
+/* micro-USB has no PD: roles follow the cable and cannot be swapped */
+static int mt_usb_dr_set_property(struct dual_role_phy_instance *dual_role,
+				  enum dual_role_property prop,
+				  const unsigned int *val)
+{
+	return -EINVAL;
+}
+
+static int mt_usb_dr_property_is_writeable(
+		struct dual_role_phy_instance *dual_role,
+		enum dual_role_property prop)
+{
+	return 0;
+}
+
+static const struct dual_role_phy_desc mt_usb_dr_desc = {
+	.name			= "otg_default",
+#ifdef CONFIG_USB_MTK_OTG
+	.supported_modes	= DUAL_ROLE_SUPPORTED_MODES_DFP_AND_UFP,
+#else
+	/* host support is not built in: only report what can happen */
+	.supported_modes	= DUAL_ROLE_SUPPORTED_MODES_UFP,
+#endif
+	.properties		= mt_usb_dr_props,
+	.num_properties		= ARRAY_SIZE(mt_usb_dr_props),
+	.get_property		= mt_usb_dr_get_property,
+	.set_property		= mt_usb_dr_set_property,
+	.property_is_writeable	= mt_usb_dr_property_is_writeable,
+};
+
+/* tell userspace (uevent) that the roles may have changed */
+void mt_usb_dual_role_changed(void)
+{
+	if (!IS_ERR_OR_NULL(mt_usb_dual_role))
+		dual_role_instance_changed(mt_usb_dual_role);
+}
+
+static void mt_usb_dual_role_register(struct musb *musb)
+{
+	struct dual_role_phy_instance *dr;
+
+	dr = devm_dual_role_instance_register(musb->controller, &mt_usb_dr_desc);
+	if (IS_ERR(dr)) {
+		/* the HAL then just sees no port; USB itself is unaffected */
+		printk("[MUSB] dual_role_usb register failed: %ld\n", PTR_ERR(dr));
+		return;
+	}
+	dr->drv_data = musb;
+	mt_usb_dual_role = dr;
+}
+
+/* ================================ */
 /* connect and disconnect functions */
 /* ================================ */
 bool mt_usb_is_device(void)
@@ -354,6 +464,8 @@ void mt_usb_connect(void)
 	usb_connected = true;
 	spin_unlock(&musb_connect_lock);
 	musb_start(mtk_musb);
+	mt_usb_dr_attached = true;
+	mt_usb_dual_role_changed();
 #ifdef MTK_CDP_ENABLE
 	first_connect = 1;
 #endif
@@ -368,6 +480,8 @@ void mt_usb_disconnect(void)
 		return;
 
 	musb_stop(mtk_musb);
+	mt_usb_dr_attached = false;
+	mt_usb_dual_role_changed();
 
 	if (wake_lock_active(&mtk_musb->usb_lock))
 		wake_unlock(&mtk_musb->usb_lock);
@@ -985,6 +1099,8 @@ static int mt_usb_init(struct musb *musb)
 #ifdef CONFIG_USB_MTK_OTG
 	mt_usb_otg_init(musb);
 #endif
+
+	mt_usb_dual_role_register(musb);
 
 	return 0;
 }

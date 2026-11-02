@@ -310,6 +310,7 @@ static void musb_id_pin_work(struct work_struct *data)
 out:
 	DBG(0, "work end, is_host=%d\n", mtk_musb->is_host);
 	up(&mtk_musb->musb_lock);
+	mt_usb_dual_role_changed();
 
 }
 

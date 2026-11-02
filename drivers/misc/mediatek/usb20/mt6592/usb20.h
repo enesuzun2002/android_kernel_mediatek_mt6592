@@ -25,6 +25,9 @@
 #define FPGA_PLATFORM 1
 #endif
 
+/* dual_role_usb: notify userspace that the port roles changed */
+extern void mt_usb_dual_role_changed(void);
+
 struct mt_usb_glue {
 	struct device		*dev;
 	struct platform_device	*musb;
