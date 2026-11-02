@@ -71,7 +71,7 @@ obj-y += mt_sleep.o
 endif
 #obj-y += mt_cpufreq.o mt_gpufreq.o mt_cpu_ss.o
 ifneq ($(CONFIG_MTK_FPGA),y)
-obj-y += mt_cpufreq.o mt_cpu_ss.o
+obj-y += mt_cpufreq.o mt_cpu_ss.o mt_cpu_ncpu_limit.o
 endif
 #obj-y += mt_emifreq.o
 obj-y += mt_dormant.o

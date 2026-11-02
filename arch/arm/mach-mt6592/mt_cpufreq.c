@@ -782,6 +782,8 @@ extern int mtk_gpufreq_register(struct mt_gpufreq_power_info *freqs, int num);
 #ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
 extern void hp_limited_cpu_num(int num);
 #endif
+/* governor independent core count limit, see mt_cpu_ncpu_limit.c */
+extern void mt_cpu_ncpu_limit_set(unsigned int ncpu);
 extern u32 PTP_get_ptp_level(void);
 
 extern unsigned int mt_get_cpu_freq(void);
@@ -6945,6 +6947,7 @@ void mt_cpufreq_cpu_power_protect(void)
         #ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
         hp_limited_cpu_num(g_limited_max_ncpu);
         #endif
+        mt_cpu_ncpu_limit_set(g_limited_max_ncpu);
 
         cpufreq_info("thermal limit g_limited_max_freq = %d, g_limited_max_ncpu = %d, limited_power = %d\n", g_limited_max_freq, g_limited_max_ncpu, limited_power);
     }
@@ -6991,6 +6994,7 @@ void mt_cpufreq_cpu_power_protect(void)
         #ifdef CONFIG_CPU_FREQ_GOV_HOTPLUG
         hp_limited_cpu_num(g_limited_max_ncpu);
         #endif
+        mt_cpu_ncpu_limit_set(g_limited_max_ncpu);
 
         mt_cpufreq_target(policy, g_limited_max_freq, CPUFREQ_RELATION_L);
 
