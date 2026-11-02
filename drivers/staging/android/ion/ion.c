@@ -33,6 +33,8 @@
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 #include <linux/debugfs.h>
+#include <linux/proc_fs.h>
+#include <linux/uidgid.h>
 #include <linux/dma-buf.h>
 #include <linux/idr.h>
 #include <linux/mtk_ion.h>
@@ -867,6 +869,60 @@ static int ion_debug_client_show(struct seq_file *s, void *unused)
 
 	return 0;
 }
+
+/*
+ * /proc/ion_pids for the memtrack HAL, which cannot use debugfs on Pie.
+ * One line per userspace client: "pid total_bytes pss_bytes". total_bytes is
+ * the size of every buffer the client holds a handle to, pss_bytes divides
+ * each buffer by its handle count. A process may own several clients, the
+ * reader sums them by pid.
+ */
+static int ion_pids_show(struct seq_file *s, void *unused)
+{
+	struct ion_device *dev = g_ion_device;
+	struct rb_node *n, *h;
+
+	if (!dev)
+		return 0;
+
+	down_read(&dev->lock);
+	for (n = rb_first(&dev->clients); n; n = rb_next(n)) {
+		struct ion_client *client = rb_entry(n, struct ion_client, node);
+		size_t total = 0, pss = 0;
+
+		/* kernel clients are named, userspace ones are named by pid */
+		if (!client->name || client->name[0] < '0' || client->name[0] > '9')
+			continue;
+
+		mutex_lock(&client->lock);
+		for (h = rb_first(&client->handles); h; h = rb_next(h)) {
+			struct ion_buffer *buffer = rb_entry(h, struct ion_handle,
+							     node)->buffer;
+			int cnt = buffer->handle_count;
+
+			total += buffer->size;
+			pss += buffer->size / (cnt > 0 ? cnt : 1);
+		}
+		mutex_unlock(&client->lock);
+
+		seq_printf(s, "%d %zu %zu\n", client->pid, total, pss);
+	}
+	up_read(&dev->lock);
+
+	return 0;
+}
+
+static int ion_pids_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, ion_pids_show, NULL);
+}
+
+static const struct file_operations ion_pids_fops = {
+	.open = ion_pids_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
 
 static int ion_debug_client_open(struct inode *inode, struct file *file)
 {
@@ -1906,11 +1962,19 @@ debugfs_done:
 	/* Create ION Debug DB Root */
 	ion_debug_create_db(idev->debug_root);
 #endif
+	{
+		struct proc_dir_entry *ent = proc_create("ion_pids",
+				S_IRUSR | S_IRGRP, NULL, &ion_pids_fops);
+		if (ent)
+			proc_set_user(ent, GLOBAL_ROOT_UID,
+				      make_kgid(&init_user_ns, 1000));
+	}
 	return idev;
 }
 
 void ion_device_destroy(struct ion_device *dev)
 {
+	remove_proc_entry("ion_pids", NULL);
 	misc_deregister(&dev->dev);
 	debugfs_remove_recursive(dev->debug_root);
 	/* XXX need to free the heaps and clients ? */
