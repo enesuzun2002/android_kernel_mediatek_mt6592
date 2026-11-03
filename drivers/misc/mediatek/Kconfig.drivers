@@ -885,7 +885,6 @@ config MTK_STAGING
 	depends on SWAP
 	select ZSMALLOC
 	select ZRAM
-	select ZRAM_DEBUG
 	default n
 #
 # MTK PASR mechanism
