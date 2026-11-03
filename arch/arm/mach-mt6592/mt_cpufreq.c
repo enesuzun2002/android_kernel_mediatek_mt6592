@@ -7583,6 +7583,35 @@ static int mt_socfreq_voltage_read(struct seq_file *m, void *v)
 
     return 0;
 }
+
+/*
+ * VCORE (GPU, SoC, DRAM controller) undervolt for testing: write an MT6333
+ * VCORE code (0.7 V + code * 6.25 mV). Bounded to 0x30..0x44 (1.000..1.125 V):
+ * never above the pre-loader's 1.125 V and never below the 1.0 V MTK itself
+ * uses for VCORE. Goes through the same phased setter as the DFS/SDIO code.
+ */
+#define SOCFREQ_VCORE_CODE_MIN	0x30
+#define SOCFREQ_VCORE_CODE_MAX	0x44
+static ssize_t mt_socfreq_voltage_write(struct file *file, const char __user *buffer, size_t count, loff_t *data)
+{
+	char desc[16];
+	int len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
+	unsigned int code = 0;
+
+	if (copy_from_user(desc, buffer, len))
+		return -EFAULT;
+	desc[len] = '\0';
+	if (kstrtouint(strim(desc), 0, &code) || code < SOCFREQ_VCORE_CODE_MIN ||
+	    code > SOCFREQ_VCORE_CODE_MAX) {
+		socfreq_info("socfreq_voltage: need a code in 0x%x..0x%x\n",
+			     SOCFREQ_VCORE_CODE_MIN, SOCFREQ_VCORE_CODE_MAX);
+		return -EINVAL;
+	}
+	DFS_phase_mt6333_config_interface((char)code);
+	g_cur_soc_volt = 700 + (code * 625) / 100;
+	socfreq_info("socfreq_voltage: VCORE code 0x%x (%u mV)\n", code, g_cur_soc_volt);
+	return count;
+}
 #endif
 
 /***************************
@@ -12137,6 +12166,7 @@ static const struct file_operations mt_socfreq_voltage_fops = {
     .owner = THIS_MODULE,
     .open = mt_socfreq_voltage_open,
     .read = seq_read,
+    .write = mt_socfreq_voltage_write,
 };
 #endif
 
