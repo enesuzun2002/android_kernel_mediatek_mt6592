@@ -17,6 +17,9 @@
 
 #include <linux/spinlock.h>
 #include <linux/mutex.h>
+#include <linux/rwsem.h>
+
+#include "zcomp.h"
 
 #include "../zsmalloc/zsmalloc.h"
 
@@ -109,8 +112,8 @@ struct zram_stats {
 };
 
 struct zram_meta {
-	void *compress_workmem;
-	void *compress_buffer;
+	rwlock_t tb_lock;	/* protects the table entries and the
+				 * 32bit stat counters */
 	struct table *table;
 	struct zs_pool *mem_pool;
 };
@@ -118,9 +121,14 @@ struct zram_meta {
 struct zram {
 	struct zram_meta *meta;
 	spinlock_t stat64_lock;	/* protect 64-bit stats */
-	struct rw_semaphore lock; /* protect compression buffers, table,
-				   * 32bit stat counters against concurrent
-				   * notifications, reads and writes */
+#ifdef CONFIG_ZSM
+	struct rw_semaphore lock; /* ZSM keeps global rb-trees of pages, so
+				   * writers are serialized against each
+				   * other and against readers */
+#endif
+	struct zcomp *comp;
+	char compressor[10];	/* compression algorithm name */
+	int max_comp_streams;	/* compression streams limit */
 	struct request_queue *queue;
 	struct gendisk *disk;
 	int init_done;
@@ -145,13 +153,5 @@ extern void zram_reset_device(struct zram *zram);
 extern struct zram_meta *zram_meta_alloc(u64 disksize);
 extern void zram_meta_free(struct zram_meta *meta);
 extern void zram_init_device(struct zram *zram, struct zram_meta *meta);
-
-/* Type for zram compression/decompression hooks */
-#ifdef CONFIG_ZSM
-typedef int (*comp_hook) (const unsigned char *, size_t , unsigned char *, size_t *, void *, int *);
-#else
-typedef int (*comp_hook) (const unsigned char *, size_t , unsigned char *, size_t *, void *);
-#endif
-typedef int (*decomp_hook) (const unsigned char *, size_t , unsigned char *, size_t *);
 
 #endif
