@@ -2108,6 +2108,9 @@ config HZ
 		ARCH_S5PV210 || ARCH_EXYNOS4
 	default AT91_TIMER_HZ if ARCH_AT91
 	default SHMOBILE_TIMER_HZ if ARCH_SHMOBILE
+	# hulkbuster: 4 ms ticks for finer scheduling and cpufreq sampling on the
+	# 8x Cortex-A7 (100 Hz gave 10 ms granularity to every sleep and timer).
+	default 250 if ARCH_MT6592
 	default 100
 
 config SCHED_HRTICK
