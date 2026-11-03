@@ -1365,6 +1365,32 @@ static void AudDrv_Store_reg_AFE(AudAfe_Suspend_Reg *pBackup_reg)
     AudDrv_Clk_Off();
     PRINTK_AUDDRV("-AudDrv_Store_reg \n");
 }
+/*
+ * hulkbuster: the speaker amp is fed from the MT6323 headphone/line buffer,
+ * whose gain fields are AUDTOP_CON5[14:12] (L) and [10:8] (R), register value
+ * = 7 - index into {+9,+7,+5,+3,+1,-1,-3,-5} dB, i.e. 0 is the lowest gain
+ * (-5 dB). The HAL's volume step writes 0 there at every playback, so the
+ * speaker ran at the minimum buffer gain (very quiet). Raise those per-field
+ * volume writes to a floor; full-register writes (open/close pop control)
+ * are left alone. hp_gain_floor: 0..7 (7 = +9 dB, the maximum; still clean on this speaker), 0 = HAL value unchanged.
+ */
+#define HULK_AUDTOP_CON5	0x70a
+static int hp_gain_floor = 7;
+module_param(hp_gain_floor, int, 0644);
+
+static void hulk_hp_gain_floor(Register_Control *reg)
+{
+    uint32 f;
+
+    if (reg->offset != HULK_AUDTOP_CON5 || hp_gain_floor <= 0)
+        return;
+    f = (hp_gain_floor > 7) ? 7 : hp_gain_floor;
+    if ((reg->mask & 0xffff) == 0x7000 && ((reg->value >> 12) & 0x7) < f)
+        reg->value = (reg->value & ~0x7000) | (f << 12);
+    if ((reg->mask & 0xffff) == 0x0700 && ((reg->value >> 8) & 0x7) < f)
+        reg->value = (reg->value & ~0x0700) | (f << 8);
+}
+
 static long AudDrv_ioctl(struct file *fp, unsigned int cmd, unsigned long arg);
 
 static void AudDrv_Recover_reg_ANA(AudAna_Suspend_Reg *pBackup_reg)
@@ -2994,6 +3020,7 @@ static long AudDrv_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
             {
                 return -EFAULT;
             }
+            hulk_hp_gain_floor(&Reg_Data);
             AudDrv_ANA_Clk_On();
             spin_lock(&auddrv_lock);
             Ana_Set_Reg(Reg_Data.offset, Reg_Data.value, Reg_Data.mask);
