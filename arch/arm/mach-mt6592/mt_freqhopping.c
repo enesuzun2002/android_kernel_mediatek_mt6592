@@ -15,6 +15,7 @@
  */
  
 #include <linux/module.h>
+#include <asm/div64.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
@@ -192,6 +193,7 @@ static const struct freqhopping_ssc mt_ssc_msdcpll_setting[MT_SSC_NR_PREDEFINE_S
 #define MMPLL_TARGETVCO_2_DDS		0x00130000
 #define MMPLL_TARGETVCO_3_DDS		0x0009C000
 #define MMPLL_TARGETVCO_4_DDS		0x00172000
+#define MMPLL_OC_MAX_VCO			3120000	/* GPU 780 MHz, +12% */
 
 static const struct freqhopping_ssc mt_ssc_mmpll_setting[MT_SSC_NR_PREDEFINE_SETTING]= {
 	{0,0,0,0,0,0},//Means disable
@@ -1828,6 +1830,18 @@ static int mt_fh_hal_dfs_mmpll(unsigned int target_freq)  //mmpll dfs mode
 		target_dds = MMPLL_TARGETVCO_3_DDS;
 	else if (target_freq == MMPLL_TARGETVCO_4)
 		target_dds = MMPLL_TARGETVCO_4_DDS;
+	else if (target_freq > MMPLL_TARGETVCO_1 && target_freq <= MMPLL_OC_MAX_VCO)
+	{
+		/*
+		 * GPU overclock (GPU clock = MMPLL / 4): any VCO between the stock
+		 * 2782 MHz and MMPLL_OC_MAX_VCO, set through /proc/freqhopping/dvfs
+		 * ("4 0 <vco_khz>"). DDS is the 26 MHz-reference multiplier in
+		 * 14-bit fixed point (2782000 -> 107 << 14 = 0x1AC000).
+		 */
+		unsigned long long dds = (unsigned long long)target_freq << 14;
+		do_div(dds, 26000);
+		target_dds = (unsigned int)dds;
+	}
 	else
 	{
 		FH_BUG_ON("Incorrect MMPLL_TARGETVCO.");
