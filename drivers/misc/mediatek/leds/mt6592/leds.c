@@ -996,6 +996,31 @@ void mt_mt65xx_led_work(struct work_struct *work)
 	mutex_unlock(&leds_mutex);;
 }
 
+static void mt65xx_lcd_apply(struct mt65xx_led_data *led_data)
+{
+	if (MT65XX_LED_MODE_CUST_BLS_PWM == led_data->cust.mode)
+		mt_mt65xx_led_set_cust(&led_data->cust,
+			((((1 << MT_LED_INTERNAL_LEVEL_BIT_CNT) - 1)*led_data->level + 127)/255));
+	else
+		mt_mt65xx_led_set_cust(&led_data->cust, led_data->level);
+}
+
+/*
+ * On wake Android turns the backlight on as soon as the window manager
+ * reports the first frame drawn, but on this panel that frame reaches the
+ * glass ~0.2 s later (MTK's own framework used to wait a couple of frames
+ * in MTKFB_POWERON), so the lit panel showed black first. Defer a
+ * backlight off->on transition a little; any later change cancels it.
+ */
+#define LCD_ON_DELAY_MS 200
+static struct mt65xx_led_data *lcd_on_led;
+static void mt65xx_lcd_on_work(struct work_struct *work)
+{
+	if (lcd_on_led && lcd_on_led->level)
+		mt65xx_lcd_apply(lcd_on_led);
+}
+static DECLARE_DELAYED_WORK(lcd_on_dwork, mt65xx_lcd_on_work);
+
 void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 {
 	struct mt65xx_led_data *led_data =
@@ -1023,6 +1048,7 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 	// do something only when level is changed
 	if(led_data->level != level)
 	{
+		int was_off = (led_data->level == 0);
 		led_data->level = level;
 		if(strcmp(led_data->cust.name,"lcd-backlight") != 0)
 		{
@@ -1032,14 +1058,16 @@ void mt_mt65xx_led_set(struct led_classdev *led_cdev, enum led_brightness level)
 		else
 		{
 			LEDS_DEBUG("[LED]Set Backlight directly %d at time %lu\n",led_data->level,jiffies);
-			if(MT65XX_LED_MODE_CUST_BLS_PWM == led_data->cust.mode)
-			{
-				mt_mt65xx_led_set_cust(&led_data->cust, ((((1 << MT_LED_INTERNAL_LEVEL_BIT_CNT) - 1)*level + 127)/255));
+			if (level && (was_off || delayed_work_pending(&lcd_on_dwork))) {
+				/* new level is picked up when the work runs */
+				lcd_on_led = led_data;
+				if (was_off)
+					schedule_delayed_work(&lcd_on_dwork,
+						msecs_to_jiffies(LCD_ON_DELAY_MS));
+			} else {
+				cancel_delayed_work(&lcd_on_dwork);
+				mt65xx_lcd_apply(led_data);
 			}
-			else
-			{
-				mt_mt65xx_led_set_cust(&led_data->cust, led_data->level);	
-			}	
 		}
 	}
 	//spin_unlock_irqrestore(&leds_lock, flags);

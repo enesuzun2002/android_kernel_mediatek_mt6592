@@ -1613,9 +1613,11 @@ static int mtkfb_ioctl(struct file *file, struct fb_info *info, unsigned int cmd
     	{
             msleep(2*100000/lcd_fps); // Delay 2 frames.
     	}
-#ifndef MTKFB_FPGA_ONLY
-		mt65xx_leds_brightness_set(MT65XX_LED_TYPE_LCD,127);
-#endif
+		/*
+		 * Don't switch the backlight on here. Android's display power
+		 * controller turns it on once the first frame is drawn; forcing
+		 * it on at unblank showed a black panel for ~0.5 s after wake.
+		 */
 #endif
 		return r;
 	}
