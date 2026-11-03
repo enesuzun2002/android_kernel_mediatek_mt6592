@@ -722,6 +722,18 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 	write_unlock(&meta->tb_lock);
 #endif
 
+	/*
+	 * Take a compression stream before mapping the page: when all streams
+	 * are busy zcomp_strm_find() sleeps until one is released, and sleeping
+	 * under kmap_atomic() is a "scheduling while atomic" BUG (seen under
+	 * heavy swap with 8 parallel writers).
+	 */
+	zstrm = zcomp_strm_find(zram->comp);
+	if (!zstrm) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
 	user_mem = kmap_atomic(page);
 
 	if (is_partial_io(bvec)) {
@@ -750,13 +762,6 @@ static int zram_bvec_write(struct zram *zram, struct bio_vec *bvec, u32 index,
 		goto out;
 	}
 
-	zstrm = zcomp_strm_find(zram->comp);
-	if (!zstrm) {
-		if (!is_partial_io(bvec))
-			kunmap_atomic(user_mem);
-		ret = -ENOMEM;
-		goto out;
-	}
 #ifdef CONFIG_ZSM
 	ret = zcomp_compress(zram->comp, zstrm, uncmem, &clen, &checksum);
 #else
