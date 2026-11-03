@@ -436,6 +436,13 @@ static unsigned int g_cur_freq_highest;
 static unsigned int g_cpufreq_turbo_mode_efuse_on_off = 1; /* bit[10], 0: on, 1:off  */
 static unsigned int g_cpufreq_turbo_mode_efuse_4_core = 0;
 static unsigned int g_cpufreq_turbo_mode_efuse_2_core = 0;
+/*
+ * Turbo bonus with 5-8 cores online. Not an eFuse value: the SoC only fuses the
+ * 1-2 and 3-4 core bonuses (and this unit fuses turbo off). 0 = no turbo, as
+ * stock; the power HAL sets it through cpufreq_highest_turbo_mode after the
+ * 8-core turbo frequency has been stress-tested on the device.
+ */
+static unsigned int g_cpufreq_turbo_mode_8_core = 0;
 static unsigned int g_cur_freq_target_online_cpu = 0;
 static unsigned int g_prev_freq_target_online_cpu = 0;
 static unsigned int g_mt_cpufreq_hotplug_notify_change = 0;
@@ -5096,6 +5103,10 @@ static void mt_cpufreq_set_locked(unsigned int freq_old, unsigned int freq_new, 
 				{
 					freq_new = freq_new + g_cpufreq_turbo_mode_efuse_2_core;
 				}
+				else if(online_cpu >= 5)
+				{
+					freq_new = freq_new + g_cpufreq_turbo_mode_8_core;
+				}
 
 				g_cur_freq_highest = freq_new;
 
@@ -5140,6 +5151,10 @@ static void mt_cpufreq_set_locked(unsigned int freq_old, unsigned int freq_new, 
 				else if((online_cpu == 1)||(online_cpu == 2))
 				{
 					freq_new = freq_new + g_cpufreq_turbo_mode_efuse_2_core;
+				}
+				else if(online_cpu >= 5)
+				{
+					freq_new = freq_new + g_cpufreq_turbo_mode_8_core;
 				}
 
 				if (freq_new == g_cur_freq_highest)
@@ -9510,14 +9525,15 @@ static int mt_cpufreq_highest_turbo_mode_read(struct seq_file *m, void *v)
 	seq_printf(m, "g_cpufreq_turbo_mode_efuse_on_off = %d\n", g_cpufreq_turbo_mode_efuse_on_off);
 	seq_printf(m, "g_cpufreq_turbo_mode_efuse_4_core = %d\n", g_cpufreq_turbo_mode_efuse_4_core);
 	seq_printf(m, "g_cpufreq_turbo_mode_efuse_2_core = %d\n", g_cpufreq_turbo_mode_efuse_2_core);
+	seq_printf(m, "g_cpufreq_turbo_mode_8_core = %d\n", g_cpufreq_turbo_mode_8_core);
 
     return 0;
 }
 
 static ssize_t mt_cpufreq_highest_turbo_mode_write(struct file *file, const char __user *buffer, size_t count, loff_t *data)
 {
-    int on_off = 0, freq_4core = 0, freq_2core = 0;
-	char desc[32];
+    int on_off = 0, freq_4core = 0, freq_2core = 0, freq_8core = 0, n = 0;
+	char desc[48];
 	int len = 0;
 
 	len = (count < (sizeof(desc) - 1)) ? count : (sizeof(desc) - 1);
@@ -9526,11 +9542,14 @@ static ssize_t mt_cpufreq_highest_turbo_mode_write(struct file *file, const char
 	}
 	desc[len] = '\0';
 
-    if (sscanf(desc, "%d %d %d", &on_off, &freq_4core, &freq_2core) == 3)
+    n = sscanf(desc, "%d %d %d %d", &on_off, &freq_4core, &freq_2core, &freq_8core);
+    if (n >= 3)
     {
         g_cpufreq_turbo_mode_efuse_on_off = on_off;
 		g_cpufreq_turbo_mode_efuse_4_core = freq_4core;
 		g_cpufreq_turbo_mode_efuse_2_core = freq_2core;
+		/* optional 4th value: bonus with 5-8 cores online */
+		g_cpufreq_turbo_mode_8_core = (n == 4) ? freq_8core : 0;
     }
     else
     {
