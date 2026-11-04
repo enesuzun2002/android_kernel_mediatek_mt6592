@@ -3305,7 +3305,7 @@ static struct file_operations adc_cali_fops = {
 void check_battery_exist(void)
 {
 #if defined(CONFIG_DIS_CHECK_BATTERY)
-	battery_log(BAT_LOG_CRTI, "[BATTERY] Disable check battery exist.\n");
+	battery_log(BAT_LOG_FULL, "[BATTERY] Disable check battery exist.\n");
 #else
 	kal_uint32 baton_count = 0;
 	kal_uint32 charging_enable = KAL_FALSE;

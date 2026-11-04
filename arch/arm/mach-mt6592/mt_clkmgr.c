@@ -2860,7 +2860,7 @@ int mt_enable_clock(enum cg_clk_id id, char *name)
     clk_info("[%s]: id=%d, names=%s\n", __func__, id, name);
 #else
     if (id == MT_CG_DISP0_SMI_COMMON)
-        clk_dbg("[%s]: id=%d, names=%s\n", __func__, id, name);
+        ; /* MT_CG_DISP0_SMI_COMMON enable/disable trace silenced (log spam) */
 #endif
 
     clkmgr_lock(flags);
@@ -2891,7 +2891,7 @@ int mt_disable_clock(enum cg_clk_id id, char *name)
     clk_info("[%s]: id=%d, names=%s\n", __func__, id, name);
 #else
     if (id == MT_CG_DISP0_SMI_COMMON)
-        clk_dbg("[%s]: id=%d, names=%s\n", __func__, id, name);
+        ; /* MT_CG_DISP0_SMI_COMMON enable/disable trace silenced (log spam) */
 #endif
 
     clkmgr_lock(flags);

@@ -4296,7 +4296,7 @@ recheck:
 
 	if(rt_policy(policy)){                                                                                
 		if (!check_mt_allow_rt((struct sched_param *)param)){
-			printk("[RT_MONITOR]WARNNING [%d:%s] SET NOT ALLOW RT Prio [%d] for proc [%d:%s]\n", current->pid, current->comm, param->sched_priority, p->pid, p->comm);
+			pr_debug("[RT_MONITOR]WARNNING [%d:%s] SET NOT ALLOW RT Prio [%d] for proc [%d:%s]\n", current->pid, current->comm, param->sched_priority, p->pid, p->comm);
 			//dump_stack();
 		}
 	}

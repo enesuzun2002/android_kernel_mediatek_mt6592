@@ -268,7 +268,7 @@ int fan53555_vosel(unsigned long val)
     reg_val = reg_val | 0x80;
     ret=fan53555_write_byte(0x01, reg_val);
 
-    pr_notice("[fan53555_vosel] val=%ld, reg_val=%ld\n", val, reg_val);
+    pr_debug("[fan53555_vosel] val=%ld, reg_val=%ld\n", val, reg_val);
 
     return ret;
 }

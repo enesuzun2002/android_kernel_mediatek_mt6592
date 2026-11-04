@@ -2411,8 +2411,8 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 			t_period = time1 - mmccid_tag_t1;
 			if(t_period >= (unsigned long long )((PRT_TIME_PERIOD)*(unsigned long long )10))
 			{
-				pr_warn("[BLOCK_TAG] MMC Queue Thread:%d, %d, %d, %d, %d \n", mmcqd[0], mmcqd[1], mmcqd[2], mmcqd[3], mmcqd[4]);
-				pr_warn("[BLOCK_TAG] MMC CID: %x %x %x %x \n", g_u32_cid[0], g_u32_cid[1], g_u32_cid[2], g_u32_cid[3]);
+				pr_debug("[BLOCK_TAG] MMC Queue Thread:%d, %d, %d, %d, %d \n", mmcqd[0], mmcqd[1], mmcqd[2], mmcqd[3], mmcqd[4]);
+				pr_debug("[BLOCK_TAG] MMC CID: %x %x %x %x \n", g_u32_cid[0], g_u32_cid[1], g_u32_cid[2], g_u32_cid[3]);
 				mmccid_tag_t1 = time1;
 			}
 			if(mmcqd_tag_t1[idx]==0)
@@ -2427,13 +2427,13 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 				mmcqd_w_throughput[idx] = 0;
 				t_usage = mmcqd_t_usage_wr [idx] + mmcqd_t_usage_rd[idx];
 				if(t_period > t_usage*100)
-					pr_warn("[BLOCK_TAG] mmcqd:%d Workload < 1%%, duty %lld, period %lld, req_cnt=%d\n", mmcqd[idx], t_usage, t_period, mmcqd_rq_count[idx]);
+					pr_debug("[BLOCK_TAG] mmcqd:%d Workload < 1%%, duty %lld, period %lld, req_cnt=%d\n", mmcqd[idx], t_usage, t_period, mmcqd_rq_count[idx]);
 				else
 				{
 					do_div(t_period, 100);	//boundary issue
 					t_percent =((unsigned int)t_usage)/((unsigned int)t_period);						
 					mmcqd_work_percent[idx] = t_percent;
-					pr_warn("[BLOCK_TAG] mmcqd:%d Workload=%d%%, duty %lld, period %lld00, req_cnt=%d \n", mmcqd[idx], t_percent, t_usage, t_period, mmcqd_rq_count[idx]);	//period %lld00 == period %lld x100
+					pr_debug("[BLOCK_TAG] mmcqd:%d Workload=%d%%, duty %lld, period %lld00, req_cnt=%d \n", mmcqd[idx], t_percent, t_usage, t_period, mmcqd_rq_count[idx]);	//period %lld00 == period %lld x100
 				}
 				if(mmcqd_wr_rq_count[idx] >= 2)
 				{
@@ -2513,7 +2513,7 @@ static int mmc_blk_issue_rw_rq(struct mmc_queue *mq, struct request *rqc)
 #endif
 				
 #if defined(FEATURE_STORAGE_VMSTAT_LOGGER)
-                pr_warn("[BLOCK_TAG] vmstat (FP:%ld)(FD:%ld)(ND:%ld)(WB:%ld)(NW:%ld)\n",
+                pr_debug("[BLOCK_TAG] vmstat (FP:%ld)(FD:%ld)(ND:%ld)(WB:%ld)(NW:%ld)\n",
                             ((global_page_state(NR_FILE_PAGES)) << (PAGE_SHIFT - 10)),
                             ((global_page_state(NR_FILE_DIRTY)) << (PAGE_SHIFT - 10)),
                             ((global_page_state(NR_DIRTIED))    << (PAGE_SHIFT - 10)),

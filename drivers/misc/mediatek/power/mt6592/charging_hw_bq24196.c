@@ -148,7 +148,7 @@ kal_uint32 charging_parameter_to_value(const kal_uint32 *parameter, const kal_ui
 {
 	kal_uint32 i;
 
-	pr_notice("array_size = %d \r\n", array_size);
+	pr_debug("array_size = %d \r\n", array_size);
 
 	for (i = 0; i < array_size; i++) {
 		if (val == *(parameter + i))
@@ -659,7 +659,7 @@ static kal_uint32 charging_reset_watch_dog_timer(void *data)
 {
 	kal_uint32 status = STATUS_OK;
 
-	pr_notice("charging_reset_watch_dog_timer\r\n");
+	pr_debug("charging_reset_watch_dog_timer\r\n");
 
 	bq24196_set_wdt_rst(0x1);	/* Kick watchdog */
 
