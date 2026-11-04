@@ -3974,13 +3974,13 @@ static ssize_t AudDrv_write(struct file *fp, const char __user *data, size_t cou
                 case MEM_DL1:
                 {
                     DL1_wait_queue_flag = 0;
-                    ret = wait_event_interruptible_timeout(DL1_Wait_Queue, DL1_wait_queue_flag, (DL1_Interrupt_Interval * 2 / 10));
+                    ret = wait_event_interruptible_timeout(DL1_Wait_Queue, DL1_wait_queue_flag, msecs_to_jiffies(DL1_Interrupt_Interval * 2));
                     break;
                 }
                 case MEM_DL2:
                 {
                     DL2_wait_queue_flag = 0;
-                    ret = wait_event_interruptible_timeout(DL2_Wait_Queue, DL2_wait_queue_flag, (DL1_Interrupt_Interval * 2 / 10));
+                    ret = wait_event_interruptible_timeout(DL2_Wait_Queue, DL2_wait_queue_flag, msecs_to_jiffies(DL1_Interrupt_Interval * 2));
                     break;
                 }
             }
@@ -3993,7 +3993,7 @@ static ssize_t AudDrv_write(struct file *fp, const char __user *data, size_t cou
             if ((ret <= 0) && (t2  > DL1_Interrupt_Interval * 1000000))
             {
                 PRINTK_AUDDRV("AudDrv_write timeout, [Warning]blocked by others.(%llu)ns,(%d)jiffies written_size = %d, timoutcounter=%d\n",
-                              t2, (DL1_Interrupt_Interval * 2 / 10), written_size, timeout_counter);
+                              t2, (int)msecs_to_jiffies(DL1_Interrupt_Interval * 2), written_size, timeout_counter);
                 if (timeout_counter++ > 1)  //allow 1 timeout for mode switch
                 {
                     PRINTK_AUDDRV("auddrv write t2 = %llu t1 = %llu t2-t1 = %llu WriteArrayIndex = %d\n", t2, t1, t2 - t1, WriteArrayIndex);
@@ -4265,28 +4265,28 @@ ssize_t AudDrv_MEMIF_Read(struct file *fp,  char __user *data, size_t count, lof
                 {
                     VUL_wait_queue_flag = 0;
                     //ret = wait_event_interruptible_timeout(VUL_Wait_Queue, VUL_wait_queue_flag, AFE_UL_TIMEOUT);
-                    ret = wait_event_interruptible_timeout(VUL_Wait_Queue, VUL_wait_queue_flag, (UL_Interrupt_Interval * 2 / 10));
+                    ret = wait_event_interruptible_timeout(VUL_Wait_Queue, VUL_wait_queue_flag, msecs_to_jiffies(UL_Interrupt_Interval * 2));
                     break;
                 }
                 case MEM_DAI:
                 {
                     DAI_wait_queue_flag = 0;
                     //ret = wait_event_interruptible_timeout(DAI_Wait_Queue, DAI_wait_queue_flag, AFE_UL_TIMEOUT);
-                    ret = wait_event_interruptible_timeout(DAI_Wait_Queue, DAI_wait_queue_flag, (UL_Interrupt_Interval * 2 / 10));
+                    ret = wait_event_interruptible_timeout(DAI_Wait_Queue, DAI_wait_queue_flag, msecs_to_jiffies(UL_Interrupt_Interval * 2));
                     break;
                 }
                 case MEM_AWB:
                 {
                     AWB_wait_queue_flag = 0;
                     //ret = wait_event_interruptible_timeout(AWB_Wait_Queue, AWB_wait_queue_flag, AFE_UL_TIMEOUT);
-                    ret = wait_event_interruptible_timeout(AWB_Wait_Queue, AWB_wait_queue_flag, (UL_Interrupt_Interval * 2 / 10));
+                    ret = wait_event_interruptible_timeout(AWB_Wait_Queue, AWB_wait_queue_flag, msecs_to_jiffies(UL_Interrupt_Interval * 2));
                     break;
                 }
                 case MEM_MOD_DAI:
                 {
                     MODDAI_wait_queue_flag = 0;
                     //ret = wait_event_interruptible_timeout(MODDAI_Wait_Queue, MODDAI_wait_queue_flag, AFE_UL_TIMEOUT);
-                    ret = wait_event_interruptible_timeout(MODDAI_Wait_Queue, MODDAI_wait_queue_flag, (UL_Interrupt_Interval * 2 / 10));
+                    ret = wait_event_interruptible_timeout(MODDAI_Wait_Queue, MODDAI_wait_queue_flag, msecs_to_jiffies(UL_Interrupt_Interval * 2));
                     break;
                 }
                 default:
