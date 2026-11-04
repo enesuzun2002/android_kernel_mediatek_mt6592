@@ -3494,7 +3494,8 @@ static void mtkfb_apply_dsi_clk(struct work_struct *work)
 {
 	ktime_t t0;
 	s64 ns;
-	int i;
+	unsigned int fps;
+	int i, try;
 
 	if (!lcm_params || !lcm_params->dsi.PLL_CLOCK)
 		return;
@@ -3502,24 +3503,31 @@ static void mtkfb_apply_dsi_clk(struct work_struct *work)
 
 	/*
 	 * lcd_fps (what hwcomposer advertises) came from LK's "fps=" on the
-	 * command line, measured at LK's clock. Measure the new rate.
+	 * command line, measured at LK's clock. Measure the new rate. Early
+	 * in boot the vsync wait can return before the display IRQ is
+	 * running, which gives an impossible rate, so retry a few times.
 	 */
-	msleep(100);
-	DISP_WaitVSYNC();
-	t0 = ktime_get();
-	for (i = 0; i < 30; i++)
+	for (try = 0; try < 5; try++) {
+		msleep(try ? 500 : 100);
 		DISP_WaitVSYNC();
-	ns = ktime_to_ns(ktime_sub(ktime_get(), t0));
-	if (ns > 0) {
-		unsigned int fps = (unsigned int)div64_s64(30LL * 100 * NSEC_PER_SEC, ns);
+		t0 = ktime_get();
+		for (i = 0; i < 30; i++)
+			DISP_WaitVSYNC();
+		ns = ktime_to_ns(ktime_sub(ktime_get(), t0));
+		fps = ns > 0 ? (unsigned int)div64_s64(30LL * 100 * NSEC_PER_SEC, ns) : 0;
 		if (fps > 4000 && fps < 7000) {
 			printk("[mtkfb] DSI clk %d MHz, vsync %u.%02u Hz (was %u.%02u)\n",
 				lcm_params->dsi.PLL_CLOCK, fps / 100, fps % 100,
 				lcd_fps / 100, lcd_fps % 100);
 			lcd_fps = fps;
 			dispif_info[MTKFB_DISPIF_PRIMARY_LCD].vsyncFPS = fps;
+			return;
 		}
+		printk("[mtkfb] vsync measurement %d out of range (%u.%02u Hz), retrying\n",
+			try + 1, fps / 100, fps % 100);
 	}
+	printk("[mtkfb] vsync measurement failed, keeping %u.%02u Hz\n",
+		lcd_fps / 100, lcd_fps % 100);
 }
 static DECLARE_DELAYED_WORK(mtkfb_dsi_clk_work, mtkfb_apply_dsi_clk);
 static int __init mtkfb_dsi_clk_init(void)
