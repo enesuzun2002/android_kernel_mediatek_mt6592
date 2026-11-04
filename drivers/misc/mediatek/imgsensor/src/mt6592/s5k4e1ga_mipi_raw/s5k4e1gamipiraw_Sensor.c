@@ -1378,6 +1378,9 @@ UINT32 S5K4E1GAGetResolution(MSDK_SENSOR_RESOLUTION_INFO_STRUCT *pSensorResoluti
     #endif
     pSensorResolution->SensorFullWidth		= S5K4E1GA_IMAGE_SENSOR_FULL_WIDTH; //S5K4E1GAMIPI_REAL_CAP_WIDTH;
     pSensorResolution->SensorFullHeight		= S5K4E1GA_IMAGE_SENSOR_FULL_HEIGHT; //S5K4E1GAMIPI_REAL_CAP_HEIGHT;
+    /* video scenario runs on the preview mode; without this the HAL reads a 0x0 video range and fails to start video preview */
+    pSensorResolution->SensorVideoWidth		= S5K4E1GA_IMAGE_SENSOR_PV_WIDTH;
+    pSensorResolution->SensorVideoHeight	= S5K4E1GA_IMAGE_SENSOR_PV_HEIGHT;
 
 //    SENSORDB("SensorPreviewWidth:  %d.\n", pSensorResolution->SensorPreviewWidth);     
 //    SENSORDB("SensorPreviewHeight: %d.\n", pSensorResolution->SensorPreviewHeight);     
