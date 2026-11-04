@@ -4,6 +4,8 @@
 #include <linux/init.h>
 #include <linux/fb.h>
 #include <linux/delay.h>
+#include <linux/ktime.h>
+#include <linux/math64.h>
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/dma-mapping.h>
@@ -3479,6 +3481,53 @@ static void __exit mtkfb_cleanup(void)
 
 
 module_init(mtkfb_init);
+
+/*
+ * LK brings the panel up with its own DSI PLL setting and the kernel keeps
+ * it (the panel is never fully powered down here), so a PLL_CLOCK change in
+ * the LCM driver never took effect: the E-Tab5 panel ran at 55.7 Hz. Once
+ * the display is up, reprogram the DSI clock from the kernel's LCM params
+ * through the same runtime path MTK's fbconfig debug interface uses.
+ */
+extern LCM_PARAMS *lcm_params;
+static void mtkfb_apply_dsi_clk(struct work_struct *work)
+{
+	ktime_t t0;
+	s64 ns;
+	int i;
+
+	if (!lcm_params || !lcm_params->dsi.PLL_CLOCK)
+		return;
+	fbconfig_disp_set_mipi_clk(lcm_params->dsi.PLL_CLOCK);
+
+	/*
+	 * lcd_fps (what hwcomposer advertises) came from LK's "fps=" on the
+	 * command line, measured at LK's clock. Measure the new rate.
+	 */
+	msleep(100);
+	DISP_WaitVSYNC();
+	t0 = ktime_get();
+	for (i = 0; i < 30; i++)
+		DISP_WaitVSYNC();
+	ns = ktime_to_ns(ktime_sub(ktime_get(), t0));
+	if (ns > 0) {
+		unsigned int fps = (unsigned int)div64_s64(30LL * 100 * NSEC_PER_SEC, ns);
+		if (fps > 4000 && fps < 7000) {
+			printk("[mtkfb] DSI clk %d MHz, vsync %u.%02u Hz (was %u.%02u)\n",
+				lcm_params->dsi.PLL_CLOCK, fps / 100, fps % 100,
+				lcd_fps / 100, lcd_fps % 100);
+			lcd_fps = fps;
+			dispif_info[MTKFB_DISPIF_PRIMARY_LCD].vsyncFPS = fps;
+		}
+	}
+}
+static DECLARE_DELAYED_WORK(mtkfb_dsi_clk_work, mtkfb_apply_dsi_clk);
+static int __init mtkfb_dsi_clk_init(void)
+{
+	schedule_delayed_work(&mtkfb_dsi_clk_work, msecs_to_jiffies(2000));
+	return 0;
+}
+late_initcall(mtkfb_dsi_clk_init);
 module_exit(mtkfb_cleanup);
 
 MODULE_DESCRIPTION("MEDIATEK framebuffer driver");
